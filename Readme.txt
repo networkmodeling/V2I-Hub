@@ -6,7 +6,7 @@ https://github.com/usdot-fhwa-OPS/V2X-Hub
 Open Source Overview
 ============================
 V2I Hub
-Version 3.2.1
+Version 3.3.0
 V2I Hub was developed to support jurisdictions in deploying connected vehicle technology by reducing 
 integration issues and enabling use of their existing transportation management hardware and systems. 
 V2I Hub is a software platform that utilizes plugins to translate messages between different devices 
