@@ -10,7 +10,7 @@
 
 #include <tmx/messages/message.hpp>
 #include "MessageTypes.h"
-#include "Units.h"
+#include "Measurement.h"
 #include "VehicleParameterEnumTypes.h"
 
 namespace tmx {
@@ -22,6 +22,14 @@ namespace messages {
  */
 class VehicleBasicMessage : public tmx::message
 {
+	typedef Measurement<units::Angle, units::Angle::deg> degMeas;
+	typedef Measurement<units::Percent, units::Percent::pct> pctMeas;
+	typedef Measurement<units::Speed, units::Speed::mph> mphMeas;
+	typedef Measurement<units::Acceleration, units::Acceleration::mperspers> mperspersMeas;
+	typedef Measurement<units::Frequency, units::Frequency::rpm> rpmMeas;
+	typedef Measurement<units::Distance, units::Distance::m> mMeas;
+	typedef Measurement<units::Temperature, units::Temperature::C> CMeas;
+
 public:
 	VehicleBasicMessage() {}
 	VehicleBasicMessage(const tmx::message_container_type &contents): tmx::message(contents) {}
@@ -33,42 +41,123 @@ public:
 	static constexpr const char* MessageSubType = MSGSUBTYPE_BASIC_STRING;
 
 	/// The gear shift position.
-	std_attribute(this->msg, vehicleparam::GearState, GearPosition, vehicleparam::GearState::GearUnknown, )
+	std_attribute(this->msg, tmx::Enum<vehicleparam::GearState>, GearPosition, vehicleparam::GearState::GearUnknown, )
 
 	/// Indicates whether the brake is currently applied.
-	std_attribute(this->msg, bool, BrakeApplied, false, )
+	std_attribute(this->msg, tmx::Enum<vehicleparam::GenericState>, Brake, vehicleparam::GenericState::Inactive, )
 
-	/// The speed of the vehicle in meters per second
-	std_attribute(this->msg, double, Speed_mps, 0, )
+	/// Indicates whether the anti-lock brake system is currently applied.
+	std_attribute(this->msg, tmx::Enum<vehicleparam::GenericState>, ABS, vehicleparam::GenericState::Inactive, )
+
+	/// Indicates whether the stability control system is currently applied.
+	std_attribute(this->msg, tmx::Enum<vehicleparam::GenericState>, StabilityControl, vehicleparam::GenericState::Inactive, )
 
 	/// The turn signal position.
-	std_attribute(this->msg, vehicleparam::TurnSignalState, TurnSignalPosition, vehicleparam::TurnSignalState::SignalUnknown, )
+	std_attribute(this->msg, tmx::Enum<vehicleparam::TurnSignalState>, TurnSignalPosition, vehicleparam::TurnSignalState::SignalUnknown, )
 
 	/// The front door status
-	std_attribute(this->msg, bool, FrontDoorsOpen, false, );
+	std_attribute(this->msg, tmx::Enum<vehicleparam::DoorState>, FrontDoors, vehicleparam::DoorState::Closed, );
 
 	/// The rear door status
-	std_attribute(this->msg, bool, RearDoorsOpen, false, );
+	std_attribute(this->msg, tmx::Enum<vehicleparam::DoorState>, RearDoors, vehicleparam::DoorState::Closed, );
 
-	// Converter methods for MPH and KPH
+	/// The status of the head lights
+	std_attribute(this->msg, tmx::Enum<vehicleparam::GenericState>, HeadLights, vehicleparam::GenericState::Inactive, );
+
+	/// The status of the high beam headlights, i.e. the brights
+	std_attribute(this->msg, tmx::Enum<vehicleparam::GenericState>, HighBeam, vehicleparam::GenericState::Inactive, );
+
+	/// The status of the tail lights
+	std_attribute(this->msg, tmx::Enum<vehicleparam::GenericState>, TailLights, vehicleparam::GenericState::Inactive, );
+
+	/// The status of the brake lights
+	std_attribute(this->msg, tmx::Enum<vehicleparam::GenericState>, BrakeLights, vehicleparam::GenericState::Inactive, );
+
+	/// The status of the wipers
+	std_attribute(this->msg, tmx::Enum<vehicleparam::WiperState>, Wipers, vehicleparam::WiperState::WiperUnknown, );
+
+	/// The steering wheel angle
+	std_attribute(this->msg, degMeas, SteeringWheelAngle, 0.0, );
+
+	/// The accelerator pedal position
+	std_attribute(this->msg, pctMeas, AcceleratorPosition, 0.0, );
+
+	/// The speed of the vehicle in meters per second
+	std_attribute(this->msg, mphMeas, Speed, 0.0, )
+
+	/// The acceleration of the vehicle
+	std_attribute(this->msg, mperspersMeas, Acceleration, 0.0, );
+
+	/// The speed of the left front wheelt
+	std_attribute(this->msg, rpmMeas, LeftFrontWheel, 0.0, );
+
+	/// The speed of the right front wheelt
+	std_attribute(this->msg, rpmMeas, RightFrontWheel, 0.0, );
+
+	/// The speed of the left front wheelt
+	std_attribute(this->msg, rpmMeas, LeftRearWheel, 0.0, );
+
+	/// The speed of the right front wheelt
+	std_attribute(this->msg, rpmMeas, RightRearWheel, 0.0, );
+
+	/// The length of the vehicle
+	std_attribute(this->msg, mMeas, VehicleLength, 0.0, );
+
+	/// The outside air temperature
+	std_attribute(this->msg, CMeas, Temp, 0.0, );
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline double get_Speed_mph()
 	{
-		return this->get_Speed_mps() * Units::MPH_PER_MPS;
+		return this->get_Speed().as<units::Speed::mph>().get_value();
 	}
 
-	inline void set_Speed_mph(double mph)
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline double get_Speed_mps()
 	{
-		this->set_Speed_mps(mph * Units::MPS_PER_MPH);
+		return this->get_Speed().as<units::Speed::mps>().get_value();
 	}
 
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline double get_Speed_kph()
 	{
-		return this->get_Speed_mps() * Units::KPH_PER_MPS;
+		return this->get_Speed().as<units::Speed::kph>().get_value();
 	}
 
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline void set_Speed_mph(double mph)
+	{
+		this->set_Speed(units::Convert<units::Speed, units::Speed::mps, Speed::data_type::unit>(mph));
+	}
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline void set_Speed_mps(double mps)
+	{
+		this->set_Speed(units::Convert<units::Speed, units::Speed::mps, Speed::data_type::unit>(mps));
+	}
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline void set_Speed_kph(double kph)
 	{
-		this->set_Speed_mps(kph * Units::MPS_PER_KPH);
+		this->set_Speed(units::Convert<units::Speed, units::Speed::kph, Speed::data_type::unit>(kph));
 	}
 };
 

@@ -22,19 +22,24 @@
 #define CONSTEXPR __attribute__ ((unused))
 #else
 #define CONSTEXPR
-#endif
-#endif
+#endif /* __GNUC__ */
+#endif /* __cplusplus > 199711L */
 #endif
 
+#if __cplusplus >= 201103L
+#include <tmx/utils/Enum.hpp>
+#endif /* __cplusplus >= 201103L */
 		
 	
 namespace tmx {
+	
 		
 namespace messages {
+	
 			
 namespace appdatamessage {
+	
 				
-			
 enum DataCodeId 
 {
 		NOEVENTID = 0,
@@ -42,11 +47,17 @@ enum DataCodeId
 		VTRW = 2
 };
 		
-		
 static CONSTEXPR const char *DATACODEID_NOEVENTID_STRING = "None";
 static CONSTEXPR const char *DATACODEID_EPCW_STRING = "EPCW";
 static CONSTEXPR const char *DATACODEID_VTRW_STRING = "VTRW";
-			
+		
+static CONSTEXPR const char *DATACODEID_ALL_STRINGS[] = 
+{
+		DATACODEID_NOEVENTID_STRING,
+		DATACODEID_EPCW_STRING,
+		DATACODEID_VTRW_STRING
+};
+		
 enum StageTypes 
 {
 		None = 0,
@@ -56,19 +67,33 @@ enum StageTypes
 		Exiting = 4
 };
 		
-		
 static CONSTEXPR const char *STAGETYPES_NONE_STRING = "None";
 static CONSTEXPR const char *STAGETYPES_DETECTED_STRING = "Detected";
 static CONSTEXPR const char *STAGETYPES_ENTERING_STRING = "Entering";
 static CONSTEXPR const char *STAGETYPES_INCENTER_STRING = "InCenter";
 static CONSTEXPR const char *STAGETYPES_EXITING_STRING = "Exiting";
+		
+static CONSTEXPR const char *STAGETYPES_ALL_STRINGS[] = 
+{
+		STAGETYPES_NONE_STRING,
+		STAGETYPES_DETECTED_STRING,
+		STAGETYPES_ENTERING_STRING,
+		STAGETYPES_INCENTER_STRING,
+		STAGETYPES_EXITING_STRING
+};
+		
 			
 } /* End namespace appdatamessage */
 		
+		
 } /* End namespace messages */
+		
 	
 } /* End namespace tmx */
-
 		
+
+#if __cplusplus >= 201103L
+		
+#endif /* __cplusplus >= 201103L */ 
 #endif /* INCLUDE_APPLICATIONDATAMESSAGEENUMTYPES_H_ */
 	

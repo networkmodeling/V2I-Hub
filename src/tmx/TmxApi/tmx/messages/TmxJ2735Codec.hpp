@@ -242,8 +242,10 @@ template <typename MsgType>
 class TmxJ2735EncodedMessage: public TmxJ2735EncodedMessageBase
 {
 public:
-	typedef tmx::messages::codec::uper<MsgType> UperCodec;
-	typedef tmx::messages::codec::der<MsgType> DerCodec;
+	typedef MsgType type;
+	typedef typename type::message_type message_type;
+	typedef tmx::messages::codec::uper<type> UperCodec;
+	typedef tmx::messages::codec::der<type> DerCodec;
 
 	static constexpr const char *DefaultCodec = ASN1_CODEC<MsgType>::Encoding;
 
@@ -263,7 +265,7 @@ public:
 	 * @param other The other message
 	 */
 	TmxJ2735EncodedMessage(const TmxJ2735EncodedMessage<MsgType> &other):
-		TmxJ2735EncodedMessageBase(other), _decoded(other._decoded ? other._decoded.get() : 0) { }
+		TmxJ2735EncodedMessageBase(other), _decoded(other._decoded) { }
 
 	/**
 	 * Construct a message from a copy of another routeable message of a different type
@@ -299,7 +301,7 @@ public:
 	 * @return The decoded J2735 message
 	 */
 	template <typename DecType>
-	static typename DecType::type *decode_j2735_message(tmx::byte_stream bytes)
+	static typename DecType::message_type *decode_j2735_message(tmx::byte_stream bytes)
 	{
 		typedef typename DecType::type type;
 		typedef typename DecType::message_type msg_type;
@@ -310,7 +312,7 @@ public:
 
 		if (rval.code == RC_OK)
 		{
-			return new type(obj);
+			return obj;
 		}
 		else
 		{
@@ -329,13 +331,13 @@ public:
 	 * @returns The encoded byte stream
 	 */
 	template <typename EncType>
-	static tmx::byte_stream encode_j2735_message(typename EncType::type &message)
+	static tmx::byte_stream encode_j2735_message(const typename EncType::message_type *message)
 	{
 		typedef typename EncType::type type;
 
 		EncType encoder;
 		tmx::byte_stream bytes(TMX_J2735_MAX_DATA_SIZE);
-		asn_enc_rval_t rval = encoder.encode(message.get_j2735_data().get(), bytes);
+		asn_enc_rval_t rval = encoder.encode(message, bytes);
 
 		if (rval.encoded <= 0)
 		{
@@ -360,43 +362,56 @@ public:
 	 */
 	MsgType decode_j2735_message()
 	{
+		int msgId = get_msgId();
+
 		if (!_decoded)
 		{
 			const tmx::byte_stream &theData = this->get_data();
-			int msgId = get_msgId();
 
 			// If the encoding is incorrect for this J2735 specification, send an empty message
 			if (strcmp(ASN1_CODEC<MessageFrameMessage>::Encoding, this->get_encoding().c_str()) != 0)
 			{
 				// Unable to decode
-				_decoded.reset(new MsgType());
+				_decoded.reset();
 			}
 			else if (is_uper())
 			{
 				if (msgId > MessageFrameMessage::get_default_messageId())
 				{
-					MessageFrameMessage *frame = TmxJ2735EncodedMessage<MessageFrameMessage>::decode_j2735_message<
-							codec::uper<MessageFrameMessage> >(theData);
-					if (frame)
-						_decoded.reset(new MsgType(frame->get_j2735_data()));
+					// This is encoded within a message frame, so retrieve the frame pointer and
+					// create a shared pointer to the message type
+					std::shared_ptr<message_type> ptr = MemoryMgr().template get<message_type>(
+							TmxJ2735EncodedMessage<MessageFrameMessage>::decode_j2735_message<
+												codec::uper<MessageFrameMessage> >(theData));
+					_decoded.reset(new MsgType(ptr));
 				}
 				else
 				{
-					_decoded.reset(TmxJ2735EncodedMessage<MsgType>::decode_j2735_message<UperCodec>(theData));
+					// This is encoded directly without a message frame, so create a shared pointer directly
+					// to this structure
+					std::shared_ptr<message_type> ptr = MemoryMgr().template get<message_type>(
+							TmxJ2735EncodedMessage<MsgType>::decode_j2735_message<UperCodec>(theData));
+					_decoded.reset(new MsgType(ptr));
 				}
 			}
 			else if (is_der())
 			{
 				if (msgId > MessageFrameMessage::get_default_messageId())
 				{
-					MessageFrameMessage *frame = TmxJ2735EncodedMessage<MessageFrameMessage>::decode_j2735_message<
-							codec::der<MessageFrameMessage> >(theData);
-					if (frame)
-						_decoded.reset(new MsgType(frame->get_j2735_data()));
+					// This is encoded within a message frame, so retrieve the frame pointer and
+					// create a shared pointer to the message type
+					std::shared_ptr<message_type> ptr = MemoryMgr().template get<message_type>(
+							TmxJ2735EncodedMessage<MessageFrameMessage>::decode_j2735_message<
+														codec::der<MessageFrameMessage> >(theData));
+					_decoded.reset(new MsgType(ptr));
 				}
 				else
 				{
-					_decoded.reset(TmxJ2735EncodedMessage<MsgType>::decode_j2735_message<DerCodec>(theData));
+					// This is encoded directly without a message frame, so create a shared pointer directly
+					// to this structure
+					std::shared_ptr<message_type> ptr = MemoryMgr().template get<message_type>(
+							TmxJ2735EncodedMessage<MsgType>::decode_j2735_message<DerCodec>(theData));
+					_decoded.reset(new MsgType(ptr));
 				}
 			}
 			else
@@ -408,7 +423,12 @@ public:
 			}
 		}
 
-		return *_decoded;
+		if (!_decoded)
+			// If decoding has failed, then return an empty message
+			return MsgType();
+		else
+			// Copy the message
+			return *_decoded;
 	}
 
 	/**
@@ -424,27 +444,28 @@ public:
 		{
 			if (msgId > MessageFrameMessage::get_default_messageId())
 			{
-				MessageFrameMessage frame(message.get_j2735_data());
-				frame.flush();
+				std::shared_ptr<message_type> msgPtr = message.get_j2735_data();
+				std::unique_ptr<MessageFrame> frame { j2735::j2735_cast<MessageFrame>(msgPtr.get()) };
 				this->set_data(TmxJ2735EncodedMessage<MsgType>::encode_j2735_message<
-						codec::uper<MessageFrameMessage> >(frame));
+						codec::uper<MessageFrameMessage> >(frame.get()));
 			}
 			else
 			{
-				this->set_data(TmxJ2735EncodedMessage<MsgType>::encode_j2735_message<UperCodec>(message));
+				this->set_data(TmxJ2735EncodedMessage<MsgType>::encode_j2735_message<UperCodec>(message.get_j2735_data().get()));
 			}
 		}
 		else if (is_der())
 		{
 			if (msgId > MessageFrameMessage::get_default_messageId())
 			{
-				MessageFrameMessage frame(message.get_j2735_data());
+				std::shared_ptr<message_type> msgPtr = message.get_j2735_data();
+				std::unique_ptr<MessageFrame> frame { j2735::j2735_cast<MessageFrame>(msgPtr.get()) };
 				this->set_data(TmxJ2735EncodedMessage<MsgType>::encode_j2735_message<
-						codec::der<MessageFrameMessage> >(frame));
+						codec::der<MessageFrameMessage> >(frame.get()));
 			}
 			else
 			{
-				this->set_data(TmxJ2735EncodedMessage<MsgType>::encode_j2735_message<DerCodec>(message));
+				this->set_data(TmxJ2735EncodedMessage<MsgType>::encode_j2735_message<DerCodec>(message.get_j2735_data().get()));
 			}
 		}
 		else
@@ -463,28 +484,18 @@ public:
 	template <typename OtherMsgType>
 	OtherMsgType get_payload()
 	{
-		if (this->get_encoding().find_last_of("hexstring") > 0)
-		{
-			// Return the decoded message type
-			return decode_j2735_message();
-		}
-		else
-		{
-			decode_j2735_message();
+		// Make sure the container is flushed
+		decode_j2735_message();
+		if (_decoded)
 			_decoded->flush();
 
-			return OtherMsgType(*_decoded);
-		}
+		return *_decoded;
 	}
 
 	xml_message get_payload()
 	{
-		// Make sure the container is flushed
-		decode_j2735_message();
-		_decoded->flush();
-
 		// Copy to a new XML message
-		return *_decoded;
+		return get_payload<MsgType>();
 	}
 
 	/**
@@ -511,10 +522,8 @@ public:
 
 	int get_msgKey()
 	{
-		if (!_decoded)
-			decode_j2735_message();
-
-		return _decoded->get_messageKey();
+		MsgType msg(decode_j2735_message());
+		return msg.get_messageKey();
 	}
 
 	/**
@@ -531,6 +540,46 @@ public:
 		this->encode_j2735_message(payload);
 	}
 private:
+	// A class to manage pointers to the structures, and ultimate cleanup when
+	// the shared pointer references are exhausted
+	struct _MemoryMgr {
+		// Create a new shared pointer from the message frame structure pointer
+		template <typename _T>
+		std::shared_ptr<_T> get(MessageFrame *frame) {
+			_T *ptr = j2735::j2735_cast<_T>(frame);
+			if (ptr)
+				_registry[(uintptr_t)(ptr)] = frame;
+			return std::shared_ptr<_T>(ptr, *this);
+		}
+
+		// Create a new shared pointer from the message structure pointer
+		template <typename _T>
+		std::shared_ptr<_T> get(_T *data) {
+			return std::shared_ptr<_T>(data, *this);
+		}
+
+		// The deleter will cleanup either the message pointer or the entire message frame, if applicable
+		template <typename _T>
+		void operator()(_T *ptr) {
+			uintptr_t x = (uintptr_t)(ptr);
+			if (_registry.count(x)) {
+				j2735::j2735_destroy<MessageFrameMessage::traits_type>(_registry[x]);
+				_registry.erase(x);
+			}
+			else if (ptr)
+				j2735::j2735_destroy<j2735::SaeJ2735Traits<_T> >(ptr);
+		}
+
+	private:
+		std::map<uintptr_t, MessageFrame *> _registry;
+	};
+
+	static _MemoryMgr &MemoryMgr() {
+		static _MemoryMgr _manager;
+		return _manager;
+	}
+
+	// The decoded message will be a pointer to the message frame which wraps the decoded J2735 message
 	std::unique_ptr<MsgType> _decoded;
 
 	template <typename EncType>

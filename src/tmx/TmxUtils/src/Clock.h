@@ -13,6 +13,8 @@
 #include <ctime>
 #include <ratio>
 
+#include <sys/time.h>
+
 namespace tmx {
 namespace utils {
 
@@ -71,9 +73,38 @@ public:
 	static uint64_t GetMillisecondsSinceEpoch(const std::chrono::system_clock::time_point& tp);
 
 	/**
-	 * Return the specified milliseconds since the epoch into a std::chrono time point
+	 * Translate the specified count of periods since the epoch into the standard millisecond count.
+	 */
+	template <class Rep, class Period>
+	static uint64_t GetMillisecondsSinceEpoch(const std::chrono::duration<Rep, Period> &dur) {
+		std::chrono::system_clock::time_point tp(std::chrono::duration_cast<std::chrono::milliseconds>(dur));
+		return GetMillisecondsSinceEpoch(tp);
+	}
+
+	/**
+	 * Return the count of milliseconds since the epoch of the specified C-style timespec
+	 */
+	static uint64_t GetMillisecondsSinceEpoch(const struct timespec &tm);
+
+	/**
+	 * Return the count of milliseconds since the epoch of the specified C-stype timeval
+	 */
+	static uint64_t GetMillisecondsSinceEpoch(const struct timeval &tm);
+
+	/**
+	 * Return the specified milliseconds since the epoch as a std::chrono time point
 	 */
 	static std::chrono::system_clock::time_point GetTimepointSinceEpoch(uint64_t ms);
+
+	/**
+	 * Return the specified number of milliseconds since the epoch as a C-style timespec
+	 */
+	static void GetTimespecSinceEpcoch(uint64_t ms, struct timespec &tm);
+
+	/**
+	 * Return the specified number of milliseconds since the epoch as a C-style timeval
+	 */
+	static void GetTimevalSinceEpoch(uint64_t ms, struct timeval &tm);
 };
 
 } /* namespace utils */

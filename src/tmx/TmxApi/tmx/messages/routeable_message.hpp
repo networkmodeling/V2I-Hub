@@ -41,7 +41,7 @@ public:
 	/**
 	 * Create an empty message, or optionally from an incoming IVP message
 	 */
-	tmx_routeable_message(IvpMessage *other = 0):
+	tmx_routeable_message(const IvpMessage *other = 0):
 		tmx_message<Format>() { set_contents(other); }
 
 	/**
@@ -92,7 +92,11 @@ private:
 		if (payload)
 			msg->set_contents(payload.get());
 		else
-			msg->set_contents(get_payload_str());
+		{
+			std::string pStr = get_payload_str();
+			if (!pStr.empty())
+				msg->set_contents(get_payload_str());
+		}
 	}
 
 	template <typename OtherFormat>
@@ -192,6 +196,7 @@ public:
 			message_container_type container(payload.get_container());
 			std::stringstream ss;
 			container.template save<JSON>(ss);
+			if (this->ivpMsg->payload) cJSON_Delete(this->ivpMsg->payload);
 			this->ivpMsg->payload = cJSON_Parse(ss.str().c_str());
 		}
 	}
@@ -223,6 +228,7 @@ public:
 	{
 		this->set_encoding(IVP_ENCODING_STRING);
 		this->msg.store(ATTR_PAYLOAD, payload);
+		if (this->ivpMsg->payload) cJSON_Delete(this->ivpMsg->payload);
 		this->ivpMsg->payload = cJSON_CreateString(payload.c_str());
 	}
 
@@ -233,6 +239,7 @@ public:
 	{
 		this->set_encoding(IVP_ENCODING_STRING);
 		this->msg.store(ATTR_PAYLOAD, payload ? "1" : "0");
+		if (this->ivpMsg->payload) cJSON_Delete(this->ivpMsg->payload);
 		this->ivpMsg->payload = cJSON_CreateBool(payload ? 1 : 0);
 	}
 
@@ -243,6 +250,7 @@ public:
 	{
 		this->set_encoding(IVP_ENCODING_STRING);
 		this->msg.store(ATTR_PAYLOAD, to_string(number));
+		if (this->ivpMsg->payload) cJSON_Delete(this->ivpMsg->payload);
 		this->ivpMsg->payload = cJSON_CreateNumber((double)number);
 	}
 
@@ -253,6 +261,7 @@ public:
 	{
 		this->set_encoding(IVP_ENCODING_STRING);
 		this->msg.store(ATTR_PAYLOAD, to_string(number));
+		if (this->ivpMsg->payload) cJSON_Delete(this->ivpMsg->payload);
 		this->ivpMsg->payload = cJSON_CreateNumber(number);
 	}
 
@@ -310,16 +319,24 @@ public:
 	 */
 	void reinit()
 	{
-		if (is_empty())
+		if (is_empty() && ivpMsg)
 		{
 			// We cannot re-initialize on an empty container.
 			// Just flush out the current IVP message
-			std::string msgContents(ivpMsg_createJsonString(ivpMsg, IvpMsg_FormatOptions_none));
-			set_contents(msgContents);
+			char *msgContents = ivpMsg_createJsonString(ivpMsg, IvpMsg_FormatOptions_none);
+			if (msgContents) {
+				std::string tmp = msgContents;
+				set_contents(tmp);
+				free(msgContents);
+			}
 		}
 
 		// Reload the pointer from the contents
-		set_contents(ivpMsg_parse(const_cast<char*>(to_string().c_str())));
+		IvpMessage *ivpMessage = ivpMsg_parse(const_cast<char*>(to_string().c_str()));
+		if (ivpMessage) {
+			set_contents(ivpMessage);
+			ivpMsg_destroy(ivpMessage);
+		}
 	}
 
 	/**

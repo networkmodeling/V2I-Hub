@@ -105,7 +105,7 @@ public:
 
 typedef PluginLog<Output2FILE> FILELog;
 typedef PluginLog<Output2Syslog> SYSLog;
-#ifndef NO_EVENTLOG_UDP
+#ifdef USE_EVENTLOG_UDP
 typedef PluginLog<Output2Eventlog> EVENTLog;
 typedef EVENTLog PLUGINLog;
 #else

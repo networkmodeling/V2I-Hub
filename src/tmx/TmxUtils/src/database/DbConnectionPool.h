@@ -48,6 +48,15 @@ public:
 	DbConnection Connection(std::string connectionUrl = "", std::string username = "", std::string password = "", std::string db = "");
 
 	/**
+	 * Get a connection from the pool
+	 *
+	 * @param connectionInfo The connection URL, login and connection information
+	 * @throws A sql::SQLException for connection errors
+	 * @return An open DbConnection object
+	 */
+	DbConnection Connection(const DbConnectionInformation &connectionInfo);
+
+	/**
 	 * Close all unused connections in the pool.  Since the normal operation is to keep the connection open for future re-use, this
 	 * function should be rarely used.
 	 */

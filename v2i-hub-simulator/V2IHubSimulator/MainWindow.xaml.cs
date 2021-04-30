@@ -33,6 +33,24 @@ namespace V2IHubSimulator
         SIMULATION = 1,
         KML = 2
     }
+    
+    enum GearState
+    {
+        GearUnknown = 0,
+        Park = 1,
+        Reverse = 2,
+        Drive = 3,
+        Other = 4
+    }
+
+    public enum TurnSignalState
+    {
+        SignalUnknown = 0,
+        Off = 1,
+        Left = 2,
+        Right = 3
+    }
+
     public class RunThreadData
     {
         public RunThreadType Type { get; set; }
@@ -50,8 +68,14 @@ namespace V2IHubSimulator
         private double _resolutionMeters;
         private int _bsmFrequenceMS = 100;
         private bool? _loop = true;
+        private bool? _redCar = false;
         private double _kmlStartSliderValue = 0;
         private double _kmlEndSliderValue = 100;
+        private GearState _gearPosition = GearState.GearUnknown;
+        private bool? _brakeApplied = false;
+        private TurnSignalState _turnSignalPosition = TurnSignalState.SignalUnknown;
+        private bool? _frontDoorsOpen = false;
+        private bool? _rearDoorsOpen = false;
 
         private List<Thread> _runThreadList = new List<Thread>();
         private volatile int _runningThreadCount = 0;
@@ -79,6 +103,7 @@ namespace V2IHubSimulator
         private bool _sendSRM = false;
         private int _vehicleRoleForSRM = 14; // 12 = police, 13 = fire, 14 = ambulance
         private int _bsmPerSRM = 10; //determine frequency of SRMs, 10 = 1 per second
+        private bool _sendVBM = false;
 
 
         private bool MapInEditMode { get; set; }
@@ -93,7 +118,7 @@ namespace V2IHubSimulator
 
             MapInEditMode = false;
 
-            SimulatorAddressTextBox.Text = "10.30.100.50";
+            SimulatorAddressTextBox.Text = "10.30.100.230";
             //SimulatorPortTextBox.Text = "48917";  // simulatedBSM port
             SimulatorPortTextBox.Text = "26789";  // MessageReceiver port
             ResolutionTextBox.Text = "100";
@@ -113,6 +138,19 @@ namespace V2IHubSimulator
             KMLEndTimeSlider.Value = 100;
             KMLStartTimeSlider.SmallChange = KMLStartTimeSlider.SmallChange / 10.0;
             KMLEndTimeSlider.SmallChange = KMLEndTimeSlider.SmallChange / 10.0;
+
+            GearPositionComboBox.Items.Add(GearState.GearUnknown.ToString());
+            GearPositionComboBox.Items.Add(GearState.Park.ToString());
+            GearPositionComboBox.Items.Add(GearState.Reverse.ToString());
+            GearPositionComboBox.Items.Add(GearState.Drive.ToString());
+            GearPositionComboBox.Items.Add(GearState.Other.ToString());
+            GearPositionComboBox.SelectedIndex = 0;
+
+            TurnSignalPositionComboBox.Items.Add(TurnSignalState.SignalUnknown.ToString());
+            TurnSignalPositionComboBox.Items.Add(TurnSignalState.Off.ToString());
+            TurnSignalPositionComboBox.Items.Add(TurnSignalState.Left.ToString());
+            TurnSignalPositionComboBox.Items.Add(TurnSignalState.Right.ToString());
+            TurnSignalPositionComboBox.SelectedIndex = 0;
         }
 
         ~MainWindow()
@@ -143,8 +181,15 @@ namespace V2IHubSimulator
                 _resolutionMeters = Convert.ToDouble(ResolutionTextBox.Text);
                 _bsmFrequenceMS = Convert.ToInt32(ResolutionTextBox.Text);
                 _loop = LoopCheckBox.IsChecked;
+                _redCar = RedCarCheckBox.IsChecked;
                 _kmlStartSliderValue = KMLStartTimeSlider.Value;
                 _kmlEndSliderValue = KMLEndTimeSlider.Value;
+
+                _gearPosition = (GearState)GearPositionComboBox.SelectedIndex;
+                _brakeApplied = BrakeAppliedCheckbox.IsChecked;
+                _turnSignalPosition = (TurnSignalState)TurnSignalPositionComboBox.SelectedIndex;
+                _frontDoorsOpen = FrontDoorsOpenCheckbox.IsChecked;
+                _rearDoorsOpen = RearDoorsOpenCheckbox.IsChecked;
             }
         }
         
@@ -273,8 +318,8 @@ namespace V2IHubSimulator
             SimulationWaypoint wp = pin.ParentWaypoint;
             if (wp.VehicleID != _currentVehicleID)
                 VehicleIDComboBox.SelectedItem = wp.VehicleID.ToString();
-            WaypointLatLabel.Content = wp.Latitude.ToString();
-            WaypointLonLabel.Content = wp.Longitude.ToString();
+            WaypointLatTextBox.Text = wp.Latitude.ToString();
+            WaypointLonTextBox.Text = wp.Longitude.ToString();
             WaypointSpeedTextBox.Text = wp.Speed_mph.ToString();
             WaypointPauseTextBox.Text = wp.Pause_seconds.ToString();
             WaypointNumberLabel.Content = (wp.WaypointNumber + 1).ToString();
@@ -320,14 +365,21 @@ namespace V2IHubSimulator
 
         private void LoadSimulationToMap(Simulation simulation)
         {
-            List<SimulationWaypoint> waypointList;
-            SimulationWaypoint lastWaypoint = new SimulationWaypoint();
-
             ClearWaypoint();
             VehicleIDComboBox.SelectedIndex = -1;
             CurrentSimulation = simulation;
 
             ScenarioNameTextBox.Text = simulation.Name;
+            DrawSimulation(simulation);
+            if (VehicleIDComboBox.Items.Count > 0)
+                VehicleIDComboBox.SelectedIndex = 0;
+
+        }
+
+        private void DrawSimulation(Simulation simulation)
+        {
+            List<SimulationWaypoint> waypointList;
+            SimulationWaypoint lastWaypoint = new SimulationWaypoint();
             foreach (var key in CurrentSimulation.WaypointLists.Keys)
             {
                 waypointList = CurrentSimulation.WaypointLists[key];
@@ -345,9 +397,6 @@ namespace V2IHubSimulator
                 }
                 VehicleIDComboBox.Items.Add(key.ToString());
             }
-            if (VehicleIDComboBox.Items.Count > 0)
-                VehicleIDComboBox.SelectedIndex = 0;
-
         }
 
         #region "Button Handlers"
@@ -438,6 +487,9 @@ namespace V2IHubSimulator
                                         kwp.Longitude = point.Coordinate.Longitude;
                                         timestamp = (SharpKml.Dom.Timestamp)placemark.Time;
                                         kwp.Tick = timestamp.When.Value.Ticks;
+                                        m = Regex.Match(placemark.Description.Text, @"Time: \d+/\d+/\d+ \d+:\d+:\d+\.(?<ms>\d+)");
+                                        if (m.Success)
+                                            kwp.Tick += long.Parse(m.Groups["ms"].Value) * 10000;  // there are 10000 ticks in a ms. in DateTime
                                         if (firstPoint)
                                         {
                                             _kmlMinTick = kwp.Tick;
@@ -612,7 +664,26 @@ namespace V2IHubSimulator
                 _sendSRM = true;
             }
         }
-            
+
+        private void VBMButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sendVBM)
+            {
+                Image img = new Image();
+                img.Source = new BitmapImage(new Uri("Resources/vbm-send.png", UriKind.Relative));
+                VBMButton.Content = img;
+                VBMButton.ToolTip = "Send VBM";
+                _sendVBM = false;
+            }
+            else
+            {
+                Image img = new Image();
+                img.Source = new BitmapImage(new Uri("Resources/vbm-stop.png", UriKind.Relative));
+                VBMButton.Content = img;
+                VBMButton.ToolTip = "Stop Sending VBM";
+                _sendVBM = true;
+            }
+        }
         #endregion
 
         private void ScenarioNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -635,6 +706,48 @@ namespace V2IHubSimulator
 
                 CurrentSimulation.SetWaypointSpeed(_currentVehicleID, selectedWpNumber - 1, newSpeed);
 
+            }
+            catch (Exception ex)
+            {
+
+            }
+        }
+
+        private void WaypointLatTextBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            e.Handled = true;
+            string newText = WaypointLatTextBox.Text;
+
+            int selectedWpNumber = Int32.Parse(WaypointNumberLabel.Content as string);
+            try
+            {
+                double newLat;
+                Double.TryParse(newText, out newLat);
+
+                CurrentSimulation.SetWaypointLat(_currentVehicleID, selectedWpNumber - 1, newLat);
+                DeleteCurrentVehicleGraphics();
+                DrawSimulation(CurrentSimulation);
+            }
+            catch (Exception ex)
+            {
+
+            }
+        }
+
+        private void WaypointLonTextBox_KeyUp(object sender, KeyEventArgs e)
+        {
+            e.Handled = true;
+            string newText = WaypointLonTextBox.Text;
+
+            int selectedWpNumber = Int32.Parse(WaypointNumberLabel.Content as string);
+            try
+            {
+                double newLon;
+                Double.TryParse(newText, out newLon);
+
+                CurrentSimulation.SetWaypointLon(_currentVehicleID, selectedWpNumber - 1, newLon);
+                DeleteCurrentVehicleGraphics();
+                DrawSimulation(CurrentSimulation);
             }
             catch (Exception ex)
             {
@@ -833,12 +946,16 @@ namespace V2IHubSimulator
                                             {
                                                 //also send SRM
                                                 SendBSM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber, heading, speed1MetersPerSec, p1.Latitude, p1.Longitude, 0.0, true);
-                                                SendSRM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber, heading, speed1MetersPerSec, p1.Latitude, p1.Longitude, _vehicleRoleForSRM);
+                                                SendSRM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber + 1000, heading, speed1MetersPerSec, p1.Latitude, p1.Longitude, _vehicleRoleForSRM);
+                                                if (_sendVBM)
+                                                    SendVBM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber + 2000, speed1MetersPerSec, accelerationMetersPerSecSquared);
                                                 bsmSentSinceLastSRM = 0;
                                             }
                                             else
                                             {
                                                 SendBSM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber, heading, speed1MetersPerSec, p1.Latitude, p1.Longitude, 0.0);
+                                                if (_sendVBM)
+                                                    SendVBM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber + 2000, speed1MetersPerSec, accelerationMetersPerSecSquared);
                                                 bsmSentSinceLastSRM++;
                                             }
                                             firstBSMTimeMS = stopwatch.ElapsedMilliseconds;
@@ -858,6 +975,7 @@ namespace V2IHubSimulator
                                             {
                                                 //going backwards not implemented, we stop at segment end
                                                 segmentPoint = wp2;
+                                                nextSpeedMetersPerSec = 0;
                                             }
                                             else
                                             {
@@ -878,6 +996,8 @@ namespace V2IHubSimulator
                                                     //also send SRM, vehicle id likely not same as in BSM in real world
                                                     SendBSM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber, heading, nextSpeedMetersPerSec, segmentPoint.Latitude, segmentPoint.Longitude, 0.0, true);
                                                     SendSRM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber + 1000, heading, nextSpeedMetersPerSec, segmentPoint.Latitude, segmentPoint.Longitude, _vehicleRoleForSRM);
+                                                    if (_sendVBM)
+                                                        SendVBM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber + 2000, nextSpeedMetersPerSec, accelerationMetersPerSecSquared);
                                                     bsmSentSinceLastSRM = 0;
                                                 }
                                                 else
@@ -885,13 +1005,18 @@ namespace V2IHubSimulator
                                                     //also send SRM, vehicle id likely not same as in BSM in real world
                                                     SendBSM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber, heading, nextSpeedMetersPerSec, segmentPoint.Latitude, segmentPoint.Longitude, 0.0);
                                                     SendSRM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber + 1000, heading, nextSpeedMetersPerSec, segmentPoint.Latitude, segmentPoint.Longitude, _vehicleRoleForSRM);
+                                                    if (_sendVBM)
+                                                        SendVBM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber + 2000, nextSpeedMetersPerSec, accelerationMetersPerSecSquared);
                                                     bsmSentSinceLastSRM++;
                                                 }
                                             }
                                             else
                                             {
                                                 SendBSM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber, heading, nextSpeedMetersPerSec, segmentPoint.Latitude, segmentPoint.Longitude, 0.0);
+                                                if (_sendVBM)
+                                                    SendVBM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID + cloneNumber + 2000, nextSpeedMetersPerSec, accelerationMetersPerSecSquared);
                                                 bsmSentSinceLastSRM++;
+                                                Console.WriteLine("NEXTSPEED: " + nextSpeedMetersPerSec.ToString());
                                             }
                                             //increment point count
                                             pointCount++;
@@ -955,6 +1080,7 @@ namespace V2IHubSimulator
                             }
                             //calculate sleep time
                             sleepTimeMS = (int)(((_kmlWaypoints[currentVehicleID][i].Tick - startTick) / 10000) - (stopwatch.ElapsedMilliseconds - firstBSMTimeMS));
+                            Console.WriteLine("SleepTimeMS=" + sleepTimeMS);
                             if (sleepTimeMS > 0)
                                 Thread.Sleep(sleepTimeMS);
                             SendBSM(ref myUdpClient, simulatorAddress, simulatorPort, threadData.Type, currentVehicleID, _kmlWaypoints[currentVehicleID][i].Heading, _kmlWaypoints[currentVehicleID][i].Speed_mph * 0.44704, _kmlWaypoints[currentVehicleID][i].Latitude, _kmlWaypoints[currentVehicleID][i].Longitude, 0.0);
@@ -1104,11 +1230,88 @@ namespace V2IHubSimulator
 
                 length = 32;
                 client.Send(buffer, length);
-                
+
             }
             catch (Exception ex)
             {
                 Console.WriteLine("Exception in SendSRM: " + ex.Message);
+                try
+                {
+                    if (client != null)
+                        client.Close();
+                }
+                catch
+                {
+                }
+                client = null;
+                return false;
+            }
+
+            return true;
+        }
+
+        bool SendVBM(ref UdpClient client, string simulatorAddress, int simulatorPort, RunThreadType type, int vehicleId, double speed, double acceleration)
+        {
+            byte[] buffer = new byte[1024];
+            int length;
+            short svalue;
+            int lvalue;
+            byte bvalue;
+            try
+            {
+                if (client == null)
+                    client = new UdpClient(simulatorAddress, simulatorPort);
+
+                //HEADER
+                //message type
+                svalue = 3000;
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(svalue))).CopyTo(buffer, 0);
+                //version
+                svalue = 1;
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(svalue))).CopyTo(buffer, 2);
+                //source id
+                svalue = 55;
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(svalue))).CopyTo(buffer, 4);
+                //body length
+                svalue = 15;
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(svalue))).CopyTo(buffer, 6);
+
+                //BODY
+                //vehicle id
+                lvalue = vehicleId;
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(lvalue))).CopyTo(buffer, 8);
+                //speed in meters per second
+                lvalue = (int)(speed * 1000);
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(lvalue))).CopyTo(buffer, 12);
+                //Gear position enum
+                bvalue = (byte)_gearPosition;
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(bvalue))).CopyTo(buffer, 16);
+                //Turn signal position enum
+                bvalue = (byte)_turnSignalPosition;
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(bvalue))).CopyTo(buffer, 17);
+                //Flags1
+                // bit 0 = Brake Applied
+                // bit 1 = Front Doors Open
+                // bit 2 = Rear Doors Open
+                bvalue = 0;
+                if (_brakeApplied == true)
+                    bvalue |= 0x01;
+                if (_frontDoorsOpen == true)
+                    bvalue |= 0x02;
+                if (_rearDoorsOpen == true)
+                    bvalue |= 0x04;
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(bvalue))).CopyTo(buffer, 18);
+                //acceleration in meters per second squared
+                lvalue = (int)(acceleration * 1000);
+                (BitConverter.GetBytes(IPAddress.HostToNetworkOrder(lvalue))).CopyTo(buffer, 19);
+
+                length = 23;
+                client.Send(buffer, length);
+                
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Exception in SendVBM: " + ex.Message);
                 try
                 {
                     if (client != null)
@@ -1190,14 +1393,20 @@ namespace V2IHubSimulator
         private void ClearWaypoint()
         {
             //clear waypoint
-            WaypointLatLabel.Content = "";
-            WaypointLonLabel.Content = "";
+            WaypointLatTextBox.Text = "";
+            WaypointLonTextBox.Text = "";
             WaypointSpeedTextBox.Text = "";
             WaypointPauseTextBox.Text = "";
             WaypointNumberLabel.Content = "";
         }
 
         private void DeleteVehicleButton_Click(object sender, RoutedEventArgs e)
+        {
+            DeleteCurrentVehicleGraphics();
+            DeleteCurrentVehicleSimulation();
+        }
+
+        private void DeleteCurrentVehicleGraphics()
         {
             SimulationWaypointPushPin pp;
             SimulationWaypointSegment pl;
@@ -1227,7 +1436,13 @@ namespace V2IHubSimulator
                 }
                 foreach (Object o in oList)
                     _segmentLayer.Children.Remove((UIElement)o);
+            }
+        }
 
+        private void DeleteCurrentVehicleSimulation()
+        {
+            if (VehicleIDComboBox.SelectedIndex != -1)
+            {
                 CurrentSimulation.WaypointLists.Remove(_currentVehicleID);
                 CurrentSimulation.Colors.Remove(_currentVehicleID);
                 for (int i = 1; i <= CurrentSimulation.Clones[_currentVehicleID]; i++)
@@ -1245,7 +1460,7 @@ namespace V2IHubSimulator
                 ClearWaypoint();
             }
         }
-
+        
         private void DrawVehicle(RunThreadType type, int vehicleId, double heading, double speed, double latitude, double longitude, bool alert = false)
         {
             MapPolygon mp;
@@ -1279,7 +1494,7 @@ namespace V2IHubSimulator
                 mp.Locations = new LocationCollection();
                 _vehiclePolygons[vehicleId] = mp;
             }
-            if (alert)
+            if (alert || _redCar == true)
             {
                 mp.Fill = _alertBrush;
                 mp.Stroke = _alertBrush;
@@ -1423,5 +1638,7 @@ namespace V2IHubSimulator
             KMLRefreshPath();
         }
 
+        
+        
     }
 }

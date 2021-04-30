@@ -36,6 +36,10 @@ DbConnection::DbConnection(string connectionUrl, string username, string passwor
 	Init(connectionUrl, username, password, db);
 }
 
+DbConnection::DbConnection(const DbConnectionInformation &connectionInfo) {
+	Init(connectionInfo.url, connectionInfo.username, connectionInfo.password, connectionInfo.db);
+}
+
 DbConnection::DbConnection(const DbConnection &copy): _connection(copy._connection) {
 	Init(copy._connInfo.url, copy._connInfo.username, copy._connInfo.password, copy._connInfo.db);
 }
@@ -68,12 +72,12 @@ bool DbConnection::Reconnect() {
 		return false;
 	}
 
-	PLOG(logDEBUG) << "Attempting to connect to " <<
+	FILE_LOG(logDEBUG) << "Attempting to connect to " <<
 			_connInfo.url <<  " " << _connInfo.db;
 
 	// Otherwise, reconnect
 	_connection.reset(mysql::get_mysql_driver_instance()->connect(
-			_connInfo.url, _connInfo.username, _connInfo.password));
+                       _connInfo.url, _connInfo.username, _connInfo.password));
 
 	// Set the database
 	SetDatabase(_connInfo.db);

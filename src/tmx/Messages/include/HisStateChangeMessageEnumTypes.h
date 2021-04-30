@@ -22,19 +22,24 @@
 #define CONSTEXPR __attribute__ ((unused))
 #else
 #define CONSTEXPR
-#endif
-#endif
+#endif /* __GNUC__ */
+#endif /* __cplusplus > 199711L */
 #endif
 
+#if __cplusplus >= 201103L
+#include <tmx/utils/Enum.hpp>
+#endif /* __cplusplus >= 201103L */
 		
 	
 namespace tmx {
+	
 		
 namespace messages {
+	
 			
 namespace hismessage {
+	
 				
-			
 enum HISType 
 {
 		HISUnknown = 0,
@@ -43,18 +48,31 @@ enum HISType
 		Mode = 3
 };
 		
-		
 static CONSTEXPR const char *HISTYPE_HISUNKNOWN_STRING = "Unknown";
 static CONSTEXPR const char *HISTYPE_DISPLAY_STRING = "Display";
 static CONSTEXPR const char *HISTYPE_AUDIBLE_STRING = "Audible";
 static CONSTEXPR const char *HISTYPE_MODE_STRING = "Mode";
+		
+static CONSTEXPR const char *HISTYPE_ALL_STRINGS[] = 
+{
+		HISTYPE_HISUNKNOWN_STRING,
+		HISTYPE_DISPLAY_STRING,
+		HISTYPE_AUDIBLE_STRING,
+		HISTYPE_MODE_STRING
+};
+		
 			
 } /* End namespace hismessage */
 		
+		
 } /* End namespace messages */
+		
 	
 } /* End namespace tmx */
-
 		
+
+#if __cplusplus >= 201103L
+		
+#endif /* __cplusplus >= 201103L */ 
 #endif /* INCLUDE_HISSTATECHANGEMESSAGEENUMTYPES_H_ */
 	

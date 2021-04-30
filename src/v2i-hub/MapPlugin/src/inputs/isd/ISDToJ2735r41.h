@@ -26,7 +26,6 @@ public:
 
 	MapData *to_map();
 	tmx::messages::MapDataMessage to_message();
-	tmx::messages::MapDataEncodedMessage to_encoded_message();
 private:
 	ISDDataAdaptor adaptor;
 };

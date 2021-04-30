@@ -67,7 +67,7 @@ if [ -z "${OUT_FILE}" ]; then
 fi
 
 if [ -f "${OUT_FILE}" ]; then
-i	if [ "${OVERWRITE} -gt 0 ]; then
+	if [ "${OVERWRITE}" -gt 0 ]; then
 		rm -f "${OUT_FILE}"
 	else
 		ZIP_ARG="-u"
@@ -76,7 +76,7 @@ fi
 
 ZIP_CMD="zip ${ZIP_ARG} ${OUT_FILE}"
 
-if [ ${PCAP_LOG} -gt 0 && -d /mnt/ubi/log ]; then
+if [ ${PCAP_LOG} -gt 0 -a -d /mnt/ubi/log ]; then
 	cd /mnt/ubi/log
 	${ZIP_CMD} -r `date --date="${TODAY}" +"%Y.%m%d.*"`
 	
@@ -84,10 +84,17 @@ if [ ${PCAP_LOG} -gt 0 && -d /mnt/ubi/log ]; then
 		sudo rm -rf `date --date="${TODAY}" +"%Y.%m%d.*"`
 fi
 
+TODAY_YRFIRST=`date --date="${TODAY}" +"%F"`
+TOMORROW_YRFIRST=`date --date="${TOMORROW}" +"%F"`
+
 if [ ${DEBUG_LOG} -gt 0 ]; then
 	if which journalctl >/dev/null 2>&1; then
-		journalctl -t tmxcore -S "${TODAY}" -U "${TOMORROW}" >> /tmp/tmxcore.log
-		cd /tmp
+		cd /var/log/tmx
+		sudo journalctl --sync
+		sudo journalctl --flush
+		journalctl -m -u tmxcore --no-pager --utc --out=short-precise \
+				-S "${TODAY_YRFIRST}"  -U "${TOMORROW_YRFIRST}" | \
+				sudo cat > tmxcore.log
 		
 		sudo ${ZIP_CMD} tmxcore.log
 		[ $? -eq 0 -a ${REMOVE} -gt 0 ] && sudo rm -f tmxcore.log
@@ -103,8 +110,6 @@ if [ ${DEBUG_LOG} -gt 0 ]; then
 	fi
 fi
 
-TODAY_YRFIRST=`date --date="${TODAY}" +"%Y-%m-%d"`
-TOMORROW_YRFIRST=`date --date="${TOMORROW}" +"%Y-%m-%d"`
 MYSQL_CMD="mysql -uIVP -pivp -s"
 
 if [ ${EVENT_LOG} -gt 0 ]; then

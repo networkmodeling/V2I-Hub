@@ -126,7 +126,7 @@ void addSystemDefinedMessageTypes()
 
 int main()
 {
-	DbContext::ConnectionInformation.url = "127.0.0.1";
+	DbContext::ConnectionInformation.url = "tcp://127.0.0.1:3306";
 	DbContext::ConnectionInformation.username = "IVP";
 	DbContext::ConnectionInformation.password = "ivp";
 	DbContext::ConnectionInformation.db = "IVP";

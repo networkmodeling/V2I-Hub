@@ -113,18 +113,19 @@ void FrequencyThrottle<KeyType, Duration, Clock>::set_Frequency(Duration frequen
 template <class KeyType, typename Duration, typename Clock>
 bool FrequencyThrottle<KeyType, Duration, Clock>::Monitor(KeyType key)
 {
+	typename Clock::time_point now = Clock::now();
+
 	// Find the key in the map.
 	typename std::map<KeyType, typename Clock::time_point>::iterator it = _mapLastTime.find(key);
 
 	// If key not found, store the current time, then return true to indicate it is time to do any processing.
 	if (it == _mapLastTime.end())
 	{
-		_mapLastTime.insert(std::pair<KeyType, typename Clock::time_point>(key, Clock::now()));
+		_mapLastTime.insert(std::pair<KeyType, typename Clock::time_point>(key, now));
 		return true;
 	}
 
 	// Determine duration since last time that true was returned.
-	typename Clock::time_point now = Clock::now();
 	Duration duration = FREQUENCY_THROTTLE_DURATION_CAST<Duration> (now - it->second);
 
 	// If duration surpassed, store new time and return true.

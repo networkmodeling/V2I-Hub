@@ -10,7 +10,7 @@
 
 #include <tmx/messages/message.hpp>
 #include "MessageTypes.h"
-#include "Units.h"
+#include "Measurement.h"
 
 namespace tmx {
 namespace messages {
@@ -20,6 +20,11 @@ namespace messages {
  */
 class RemoteVehicleMessage: public tmx::message
 {
+	typedef Measurement<units::Angle, units::Angle::deg> degMeas;
+	typedef Measurement<units::Distance, units::Distance::m> mMeas;
+	typedef Measurement<units::Speed, units::Speed::mph> mphMeas;
+	typedef Measurement<units::Acceleration, units::Acceleration::mperspers> mperspersMeas;
+
 public:
 	RemoteVehicleMessage(): tmx::message() {}
 	RemoteVehicleMessage(const tmx::message &contents): tmx::message(contents) {}
@@ -40,17 +45,17 @@ public:
 	/**
 	 * The compass heading of the remote vehicle
 	 */
-	std_attribute(this->msg, double, Heading, 0, );
+	std_attribute(this->msg, degMeas, Heading, 0.0, );
 
 	/**
-	 * The lateral distance to the remote vehicle in millimeters
+	 * The lateral distance to the remote vehicle
 	 */
-	std_attribute(this->msg, double, LateralSeparation, 0, );
+	std_attribute(this->msg, mMeas, LateralSeparation, 0.0, );
 
 	/**
-	 * The longitudinal distance to the remote vehicle in millimeters
+	 * The longitudinal distance to the remote vehicle
 	 */
-	std_attribute(this->msg, double, LongitudinalSeparation, 0, )
+	std_attribute(this->msg, mMeas, LongitudinalSeparation, 0.0, )
 
 	/**
 	 * Number of messages received for this vehicle
@@ -163,39 +168,72 @@ public:
 	std_attribute(this->msg, double, Longitude, 0.0, );
 
 	/**
-	 * Remote vehicle speed in meters per second
+	 * Remote vehicle speed
 	 */
-	std_attribute(this->msg, double, Speed_mps, 0.0, );
+	std_attribute(this->msg, mphMeas, Speed, 0.0, );
 
 	/**
 	 * Remote vehicle acceleration along the direction of travel
 	 */
-	std_attribute(this->msg, double, LongitudinalAcceleration, 0.0, );
+	std_attribute(this->msg, mperspersMeas, LongitudinalAcceleration, 0.0, );
 
 	/**
 	 * Remote vehicle acceleration orthogonal to direction of travel
 	 */
-	std_attribute(this->msg, double, LateralAcceleration, 0.0, );
+	std_attribute(this->msg, mperspersMeas, LateralAcceleration, 0.0, );
 
-	// Converter methods for MPH and KPH
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline double get_Speed_mph()
 	{
-		return this->get_Speed_mps() * Units::MPH_PER_MPS;
+		return this->get_Speed().as<units::Speed::mph>().get_value();
 	}
 
-	inline void set_Speed_mph(double mph)
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline double get_Speed_mps()
 	{
-		this->set_Speed_mps(mph * Units::MPS_PER_MPH);
+		return this->get_Speed().as<units::Speed::mps>().get_value();
 	}
 
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline double get_Speed_kph()
 	{
-		return this->get_Speed_mps() * Units::KPH_PER_MPS;
+		return this->get_Speed().as<units::Speed::kph>().get_value();
 	}
 
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline void set_Speed_mph(double mph)
+	{
+		this->set_Speed(units::Convert<units::Speed, units::Speed::mps, Speed::data_type::unit>(mph));
+	}
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline void set_Speed_mps(double mps)
+	{
+		this->set_Speed(units::Convert<units::Speed, units::Speed::mps, Speed::data_type::unit>(mps));
+	}
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline void set_Speed_kph(double kph)
 	{
-		this->set_Speed_mps(kph * Units::MPS_PER_KPH);
+		this->set_Speed(units::Convert<units::Speed, units::Speed::kph, Speed::data_type::unit>(kph));
 	}
 };
 

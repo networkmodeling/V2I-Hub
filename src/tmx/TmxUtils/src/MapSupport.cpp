@@ -101,6 +101,8 @@ MapMatchResult MapSupport::FindVehicleLaneForPoint(WGS84Point point,
 	r.IsInLane = false;
 	r.LaneSegment = 0;
 	r.IsEgress = false;
+	r.IsNearLane = false;
+	r.Grade = 0;
 
 	//First see if the point is inside the loose bounds of the MAP at all.
 	if(!IsPointOnMapUsa(point,map))
@@ -131,6 +133,66 @@ MapMatchResult MapSupport::FindVehicleLaneForPoint(WGS84Point point,
 	r.LaneNumber = -1; //return -1 to represent not found.
 	return r;
 }
+
+
+/**
+ * Returns -2 if not on the map. -1 if not in a lane. 0 if in the intersection itself. else, lane id matched.
+ */
+MapMatchResult MapSupport::FindVehicleLaneForPoint(WGS84Point point, double heading,
+		ParsedMap &map, bool vehicleIsStopped) {
+	MapMatchResult r;
+	r.PerpDistanceMeters = 0;
+	r.StopDistanceMeters = 0;
+	r.IsInLane = false;
+	r.LaneSegment = 0;
+	r.IsEgress = false;
+	r.IsNearLane = false;
+	r.Grade = 0;
+	MapMatchResult nearResult;
+
+	//First see if the point is inside the loose bounds of the MAP at all.
+	if(!IsPointOnMapUsa(point,map))
+	{
+		r.LaneNumber = -2; //Not on the map.
+		return r;
+	}
+
+	//Iterate over all lanes.
+	list<MapLane>::iterator i;
+	//Iterate over all vehicle lanes in the region.
+	for (i = map.Lanes.begin(); i != map.Lanes.end(); ++i)
+	{
+		if (IsVehicleLane(i->LaneNumber, map))
+		{
+			MapMatchResult result = PointIsInLane(*i, point, heading, vehicleIsStopped);
+			if (result.IsInLane)
+			{
+				//PLOG(logDEBUG) << "MapMatchResult: " << result.IsInLane << ", " << result.LaneNumber << ", " << result.LaneSegment << ", " << result.PerpDistanceMeters << ", " << result.StopDistanceMeters << ", " << result.IsEgress;
+				return result;
+			}
+			else if (result.IsNearLane)
+			{
+				if (!nearResult.IsNearLane || (nearResult.IsNearLane && result.PerpDistanceMeters < nearResult.PerpDistanceMeters))
+				{
+					nearResult = result;
+				}
+			}
+		}
+	}
+	//We have not matched to a lane. See if we are actually within the intersection
+	if (IsInCenterOfIntersection(point, map)) {
+
+		r.LaneNumber = 0; //return 0 to represent being within the intersection itself.
+
+		return r;
+	}
+	//snap to lane if close enough
+	if (nearResult.IsNearLane)
+		return nearResult;
+	r.LaneNumber = -1; //return -1 to represent not found.
+	return r;
+}
+
 //Loose check for being near/on the map
 bool MapSupport::IsPointOnMapUsa(WGS84Point point,ParsedMap &map) {
 
@@ -255,6 +317,110 @@ MapMatchResult MapSupport::PointIsInLane(MapLane &lane, WGS84Point point)
 		}
 		else
 			isFirstPoint = false;
+	}
+	return res;
+}
+
+MapMatchResult MapSupport::PointIsInLane(MapLane &lane, WGS84Point point, double heading, bool vehicleIsStopped)
+{
+	bool isFirstPoint = true;
+	int laneSegment = 0;
+	WGS84Point p1;
+	WGS84Point p2;
+	double crossTrackDistance;
+	MapMatchResult res;
+	double stopBarDistance = 0.0;
+	double angleBetween = 0.0;
+	double inLaneDistance = 0.0;
+	double segmentLength = 0.0;
+	double pointElevation = 0.0;
+	double stopBarElevation = 0.0;
+
+	for (auto it=lane.Nodes.begin(); it != lane.Nodes.end(); ++it)
+	{
+		p1 = p2;
+		p2 = it->Point;
+		if (!isFirstPoint)
+		{
+			laneSegment++;
+			//get cross track distance
+			crossTrackDistance = GeoVector::CrossTrackDistanceInMeters(point, p1, p2);
+			//check if point is within 2 lane widths and heading is within +/- 45 degrees of lane direction
+			if (lane.Direction == Egress_Computed)
+				angleBetween = GeoVector::AngleBetweenPathsInDegrees(point, heading, p1, p2);
+			else
+				angleBetween = GeoVector::AngleBetweenPathsInDegrees(point, heading, p2, p1);
+			//PLOG(logDEBUG) << "crossTrackDistance, heading, angle: " << crossTrackDistance << ", " << heading << ", " <<  angleBetween;
+			if (fabs(crossTrackDistance) <= lane.LaneWidthMeters * 2.0 &&
+					(vehicleIsStopped || (angleBetween <= 45.0 && angleBetween >= -45.0)))
+			{
+				//check is point is between segment ends
+				if (GeoVector::IsBetween(point, p1, p2))
+				{
+					res.PerpDistanceMeters = fabs(crossTrackDistance);
+					res.LaneNumber = lane.LaneNumber;
+					res.IsEgress = lane.Direction == Egress_Computed ? true : false;
+					res.LaneSegment = laneSegment;
+					inLaneDistance = GeoVector::DistanceInMeters(p1, GeoVector::NearestPointOnSegment(point, p1, p2));
+					res.StopDistanceMeters = stopBarDistance + inLaneDistance;
+					segmentLength = GeoVector::DistanceInMeters(p1, p2);
+					if (segmentLength > 0.0 && res.StopDistanceMeters != 0.0)
+					{
+						pointElevation = p1.Elevation + ((p2.Elevation - p1.Elevation) * inLaneDistance / segmentLength);
+						res.Grade = (stopBarElevation - pointElevation) / res.StopDistanceMeters;
+						PLOG(logDEBUG) << "inLaneDistance, stopBarDistance, segmentLength: " << inLaneDistance << ", " << stopBarDistance << ", " <<  segmentLength;
+						PLOG(logDEBUG) << "p2.Elevation, pointElevation, res.Grade: " << p2.Elevation << ", " << pointElevation << ", " << res.Grade;
+
+					}
+					if (fabs(crossTrackDistance) <= lane.LaneWidthMeters / 2.0 )
+					{
+						//point is in lane
+						res.IsInLane = true;
+						res.IsNearLane = false;
+					}
+					else
+					{
+						//point is near lane
+						res.IsInLane = false;
+						res.IsNearLane = true;
+					}
+					return res;
+				}
+				//check if point is in dead space between segments of a curved lane
+				if (laneSegment > 1 && GeoVector::DistanceInMeters(p1, point) <= lane.LaneWidthMeters * 2.0)
+				{
+					//point is in dead space between this lane segment and previous lane segment
+					res.PerpDistanceMeters = fabs(crossTrackDistance);
+					res.LaneNumber = lane.LaneNumber;
+					res.IsEgress = lane.Direction == Egress_Computed ? true : false;
+					res.LaneSegment = laneSegment;
+					res.StopDistanceMeters = stopBarDistance;
+					if (res.StopDistanceMeters != 0.0)
+						res.Grade = (stopBarElevation - pointElevation) / res.StopDistanceMeters;
+					if (fabs(crossTrackDistance) <= lane.LaneWidthMeters / 2.0 )
+					{
+						//point is in lane
+						res.IsInLane = true;
+						res.IsNearLane = false;
+					}
+					else
+					{
+						//point is near lane
+						res.IsInLane = false;
+						res.IsNearLane = true;
+					}
+					return res;
+				}
+			}
+			//if point not in this segment add segment length to stopBarDistance and elevation offset to point elevation
+			stopBarDistance += GeoVector::DistanceInMeters(p1, p2);
+			pointElevation += p2.Elevation / 10.0; //Elevation offset in MAP is in decimeters
+		}
+		else
+		{
+			stopBarElevation = p2.Elevation; // set stop bar elevation
+			isFirstPoint = false;
+		}
 	}
 	return res;
 }

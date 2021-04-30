@@ -182,13 +182,13 @@ int UdpServer::TimedReceive(char *msg, size_t maxSize, int maxWait_ms)
     timeout.tv_sec = maxWait_ms / 1000;
     timeout.tv_usec = (maxWait_ms % 1000) * 1000;
 
-    int retval = select(_socket + 1, &s, &s, &s, &timeout);
+    int retval = select(_socket + 1, &s, NULL, NULL, &timeout);
     if (retval == -1)
     {
         // select() set errno accordingly
         return -1;
     }
-    if (retval > 0)
+    else if (FD_ISSET(_socket, &s))
     {
         // The socket has data.
         return ::recv(_socket, msg, maxSize, 0);

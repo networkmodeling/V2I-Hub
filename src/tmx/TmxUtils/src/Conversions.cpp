@@ -10,6 +10,7 @@
 #include "Conversions.h"
 
 using namespace tmx::messages;
+using namespace tmx::messages::units;
 
 namespace tmx {
 namespace utils {
@@ -18,27 +19,27 @@ namespace utils {
 #define DSRC_EQUATORIAL_RADIUS 6378137
 double Conversions::ConvertMetersToMiles(double meters)
 {
-	return meters * Units::MILES_PER_METER;
+	return Convert<Distance, Distance::m, Distance::mi>(meters);
 }
 
 double Conversions::ConvertMilesToMeters(double miles)
 {
-	return miles * Units::METERS_PER_MILE;
+	return Convert<Distance, Distance::mi, Distance::m>(miles);
 }
 
 double Conversions::ConvertMetersPerSecToMilesPerHour(double mps)
 {
-	return mps * Units::MPH_PER_MPS;
+	return Convert<Speed, Speed::mps, Speed::mph>(mps);
 }
 
 double Conversions::ConvertDegreesToRadians(double degrees)
 {
-	return degrees * Units::RADIANS_PER_DEGREE;
+	return Convert<Angle, Angle::deg, Angle::rad>(degrees);
 }
 
 double Conversions::ConvertRadiansToDegrees(double radians)
 {
-	return radians * Units::DEGREES_PER_RADIAN;
+	return Convert<Angle, Angle::rad, Angle::deg>(radians);
 }
 
 int Conversions::ConvertMetersPerSecToMPH(double mps)
@@ -53,7 +54,7 @@ int Conversions::ConvertMetersPerSecToMPH(double mps)
 double Conversions::DistanceMeters(double degreesLat1, double degreesLon1, double degreesLat2, double degreesLon2)
 {
 	// Find radius
-	double earthRadius = 6371;
+	Measurement<Distance, Distance::km> earthRadius(6371.0087714);
 	double dLat = ConvertDegreesToRadians(degreesLat1) - ConvertDegreesToRadians(degreesLat2);
 	double dLon = ConvertDegreesToRadians(degreesLon1) - ConvertDegreesToRadians(degreesLon2);
 	double a = sin(dLat / 2) * sin(dLat / 2)
@@ -61,9 +62,8 @@ double Conversions::DistanceMeters(double degreesLat1, double degreesLon1, doubl
 			* cos(ConvertDegreesToRadians(degreesLat1))
 			* sin(dLon / 2) * sin(dLon / 2);
 	double c = 2 * atan2(sqrt(a), sqrt(1 - a));
-	double distance_km = earthRadius * c;
-	double distance_m = distance_km * 1000.0;
-	return distance_m;
+	earthRadius *= c;
+	return earthRadius.as<Distance::m>()();
 }
 
 double Conversions::DistanceMeters(WGS84Point point1, WGS84Point point2)

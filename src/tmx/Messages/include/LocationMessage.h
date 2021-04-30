@@ -12,7 +12,7 @@
 #include "MessageTypes.h"
 #include "LocationMessageEnumTypes.h"
 
-#include "Units.h"
+#include "Measurement.h"
 
 namespace tmx {
 namespace messages {
@@ -23,6 +23,10 @@ namespace messages {
  */
 class LocationMessage : public tmx::message
 {
+	typedef Measurement<units::Angle, units::Angle::deg> degMeas;
+	typedef Measurement<units::Distance, units::Distance::m> mMeas;
+	typedef Measurement<units::Speed, units::Speed::mps> mpsMeas;
+
 public:
 	LocationMessage() {}
 	LocationMessage(const tmx::message_container_type &contents): tmx::message(contents) {}
@@ -56,17 +60,17 @@ public:
 		/**
 		 * hhmmss.ss = UTC of position. (ex: 170834	        is  17:08:34 Z)
 		 */
-	std_attribute(this->msg,std::string, Time, "", )
+	std_attribute(this->msg, std::string, Time, "", )
 		/**
 		 * llll.ll = latitude of position (ex: 4124.8963, N        is 	41d 24.8963' N or 41d 24' 54" N)
 		 * 	a = N or S
 		 */
-	std_attribute(this->msg,double ,Latitude, 0, )
+	std_attribute(this->msg, double, Latitude, 0.0, )
 		/**
 		 * 	yyyyy.yy = Longitude of position (ex: 08151.6838, W        is 81d 51.6838' W or 81d 51' 41" W)
 		 * a = E or W
 		 */
-	std_attribute(this->msg,double, Longitude, 0, )
+	std_attribute(this->msg, double, Longitude, 0.0, )
 		/**
 		 * 	x = GPS Quality indicator (0=no fix, 1=GPS fix, 2=Dif. GPS fix)
 		 */
@@ -74,16 +78,16 @@ public:
 		/**
 		 * 	xx = number of satellites in use (ex: 	05	is 5 Satellites are in view)
 		 */
-	std_attribute(this->msg,int, NumSatellites, 0, )
+	std_attribute(this->msg, int, NumSatellites, 0, )
 		/**
 		 * 	x.x = horizontal dilution of precision (ex: 1.5	is Relative accuracy of horizontal position)
 		 */
-	std_attribute(this->msg,double, HorizontalDOP, 0, )
+	std_attribute(this->msg, double, HorizontalDOP, 0, )
 		/**
 		 * 	x.x = Antenna altitude above mean-sea-level (ex: 280.2, M	is   280.2 meters above mean sea level)
 	M = units of antenna altitude, meters
 		 */
-	std_attribute(this->msg,double, Altitude, 0, )
+	std_attribute(this->msg, mMeas, Altitude, 0.0, )
 		/**
 		 * x.x = Geoidal separation  - Height of geoid above WGS84 ellipsoid.  (ex: -34.0, M	is   -34.0 meters)
 	M = units of geoidal separation, meters
@@ -108,35 +112,68 @@ public:
 		 * x.x,K = Speed, m/s
 		 *  (ex: 010.2,K      Ground speed, meters per second)
 		 */
-	std_attribute(this->msg,double, Speed_mps, 0, )
+	std_attribute(this->msg, mpsMeas, Speed, 0.0, )
 
 		/**
 		 * Heading in degrees.
 		 */
-	std_attribute(this->msg,double, Heading, 0, )
+	std_attribute(this->msg, degMeas, Heading, 0.0, )
 
 
 		//eg2. $--GGA,hhmmss.ss,llll.ll,a,yyyyy.yy,a,x,xx,x.x,x.x,M,x.x,M,x.x,xxxx
 
-	// Converter methods for MPH and KPH
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline double get_Speed_mph()
 	{
-		return this->get_Speed_mps() * Units::MPH_PER_MPS;
+		return this->get_Speed().as<units::Speed::mph>().get_value();
 	}
 
-	inline void set_Speed_mph(double mph)
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline double get_Speed_mps()
 	{
-		this->set_Speed_mps(mph * Units::MPS_PER_MPH);
+		return this->get_Speed().as<units::Speed::mps>().get_value();
 	}
 
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline double get_Speed_kph()
 	{
-		return this->get_Speed_mps() * Units::KPH_PER_MPS;
+		return this->get_Speed().as<units::Speed::kph>().get_value();
 	}
 
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline void set_Speed_mph(double mph)
+	{
+		this->set_Speed(units::Convert<units::Speed, units::Speed::mps, Speed::data_type::unit>(mph));
+	}
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline void set_Speed_mps(double mps)
+	{
+		this->set_Speed(units::Convert<units::Speed, units::Speed::mps, Speed::data_type::unit>(mps));
+	}
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline void set_Speed_kph(double kph)
 	{
-		this->set_Speed_mps(kph * Units::MPS_PER_KPH);
+		this->set_Speed(units::Convert<units::Speed, units::Speed::kph, Speed::data_type::unit>(kph));
 	}
 };
 

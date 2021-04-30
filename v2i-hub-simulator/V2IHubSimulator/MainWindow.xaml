@@ -155,6 +155,10 @@
                 <Button x:Name="SRMButton" Margin="5,2" Background="SlateGray" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Click="SRMButton_Click">
                     <Image Source="Resources\srm-send.png" ToolTip="Send SRM"/>
                 </Button>
+                <Label Content="       "/>
+                <Button x:Name="VBMButton" Margin="5,2" Background="SlateGray" BorderThickness="0" Style="{StaticResource {x:Static ToolBar.ButtonStyleKey}}" Click="VBMButton_Click">
+                    <Image Source="Resources\vbm-send.png" ToolTip="Send VBM"/>
+                </Button>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Background="SlateGray" HorizontalAlignment="Center">
                 <TextBox x:Name="SearchLocationTextBox" Width="250" Height="30" KeyUp="SearchLocationTextBox_KeyUp"/>
@@ -168,8 +172,11 @@
                 <Label Content="Scenario Name"/>
                 <TextBox x:Name="ScenarioNameTextBox" TextChanged="ScenarioNameTextBox_TextChanged" />
                 <StackPanel Orientation="Horizontal">
-                    <Label Content="Loop: " Width="100"/>
+                    <Label Content="Loop: " Width="60"/>
                     <CheckBox x:Name="LoopCheckBox" IsChecked="True" />
+                    <Label Content="" Width="20"/>
+                    <Label Content="Red Car: " Width="60"/>
+                    <CheckBox x:Name="RedCarCheckBox" IsChecked="False" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <Label Content="Simulator Address: " Width="115"/>
@@ -208,11 +215,11 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <Label Content="Latitude: " Width="80"/>
-                    <Label x:Name="WaypointLatLabel" Width="100"/>
+                    <TextBox x:Name="WaypointLatTextBox" Width="130" KeyUp="WaypointLatTextBox_KeyUp"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <Label Content="Longitude: " Width="80"/>
-                    <Label x:Name="WaypointLonLabel" Width="100"/>
+                    <TextBox x:Name="WaypointLonTextBox" Width="130" KeyUp="WaypointLonTextBox_KeyUp"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <Label Content="Speed (mph): " Width="115"/>
@@ -245,7 +252,22 @@
                     <Label Content="" Width="10"/>
                     <Button x:Name="KMLRefreshPathButton" Content="Refresh KML Path" Click="KMLRefreshPathButton_Click"/>
                 </StackPanel>
+                <Label Height="32"/>
+                <Label Content="VBM Settings"/>
+                <CheckBox x:Name="BrakeAppliedCheckbox" Content="Brake Applied" IsChecked="False"/>
+                <CheckBox x:Name="FrontDoorsOpenCheckbox" Content="Front Doors Open" IsChecked="False"/>
+                <CheckBox x:Name="RearDoorsOpenCheckbox" Content="Rear Doors Open" IsChecked="False"/>
 
+                <StackPanel Orientation="Horizontal">
+                    <Label Content="Gear Position: " Width="117"/>
+                    <ComboBox x:Name="GearPositionComboBox" Width="110"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal">
+                    <Label Content="Turn Signal Position: " Width="117"/>
+                    <ComboBox x:Name="TurnSignalPositionComboBox" Width="110"/>
+                </StackPanel>
+                
             </StackPanel>
         </ScrollViewer>
 

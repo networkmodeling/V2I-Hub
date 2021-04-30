@@ -100,7 +100,7 @@ void ThreadTimer::DoWork()
 		}
 	}
 
-	while (!_stopThread)
+	while (IsRunning())
 	{
 		for (uint index = 0; true; index++)
 		{

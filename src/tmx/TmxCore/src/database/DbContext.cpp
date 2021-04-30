@@ -8,28 +8,15 @@
 #include "DbContext.h"
 #include <sstream>
 
-DbConnectionInformation DbContext::ConnectionInformation;
+tmx::utils::DbConnectionInformation DbContext::ConnectionInformation;
 
-DbContext::DbContext()
-{
-	mDriver = sql::mysql::get_driver_instance();
-	mCon = std::auto_ptr< sql::Connection >(mDriver->connect(ConnectionInformation.url, ConnectionInformation.username, ConnectionInformation.password));
+DbContext::DbContext() { }
 
-	std::auto_ptr< sql::Statement > stmt(mCon->createStatement());
+DbContext::~DbContext() { }
 
-	stmt->execute("USE " + ConnectionInformation.db);
+tmx::utils::DbConnection DbContext::getConnection() {
+	return this->ConnectionPool.Connection(ConnectionInformation);
 }
-
-DbContext::~DbContext()
-{
-
-}
-
-sql::Statement *DbContext::getStatement()
-{
-	return mCon->createStatement();
-}
-
 
 std::string DbContext::formatStringValue(std::string str)
 {

@@ -194,9 +194,43 @@ uint64_t Clock::GetMillisecondsSinceEpoch(const std::chrono::system_clock::time_
 	return std::chrono::duration_cast<chrono::milliseconds>(tp.time_since_epoch()).count();
 }
 
+uint64_t Clock::GetMillisecondsSinceEpoch(const timespec &tm)
+{
+	auto dur = seconds(tm.tv_sec) + nanoseconds(tm.tv_nsec);
+	return GetMillisecondsSinceEpoch(dur);
+}
+
+uint64_t Clock::GetMillisecondsSinceEpoch(const timeval &tm)
+{
+	auto dur = seconds(tm.tv_sec) + microseconds(tm.tv_usec);
+	return GetMillisecondsSinceEpoch(dur);
+}
+
 std::chrono::system_clock::time_point Clock::GetTimepointSinceEpoch(uint64_t ms)
 {
 	return std::chrono::system_clock::time_point(std::chrono::milliseconds(ms));
+}
+
+void Clock::GetTimespecSinceEpcoch(uint64_t ms, struct timespec &tm)
+{
+	auto tp = GetTimepointSinceEpoch(ms);
+	auto secs = time_point_cast<seconds>(tp);
+	auto nsecs = time_point_cast<nanoseconds>(tp) -
+	             time_point_cast<nanoseconds>(secs);
+
+	tm.tv_sec = secs.time_since_epoch().count();
+	tm.tv_nsec = nsecs.count();
+}
+
+void Clock::GetTimevalSinceEpoch(uint64_t ms, struct timeval &tm)
+{
+	auto tp = GetTimepointSinceEpoch(ms);
+	auto secs = time_point_cast<seconds>(tp);
+	auto usecs = time_point_cast<microseconds>(tp) -
+	             time_point_cast<microseconds>(secs);
+
+	tm.tv_sec = secs.time_since_epoch().count();
+	tm.tv_usec = usecs.count();
 }
 
 } /* namespace utils */
