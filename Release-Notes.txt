@@ -40,3 +40,8 @@ V2I Hub Version 3.2
 V2I Hub Version 3.2.1
 - Fixed issue with Administration Portal not updating configuration parameters on the Chromium Browser
 - Modified the ODE Plugin Manifest file to use local host
+
+V2I Hub Version 3.3.0
+- Fixed memory leaks and performance issues in TmxMessageManager
+- Updated LocationPlugin to work with uBlox ZED-F9P RTK
+- Updated LocationPlugin to retrieve RTCM messages from receiver
