@@ -68,13 +68,10 @@ libjsoncpp-dev
 uuid-dev
 git
 libusb-dev
-ibusb-1.0.0-dev
+libusb-1.0.0-dev
 libftdi-dev
 swig
 liboctave-dev
-gpsd libgps-dev
-portaudio19-dev
-libsndfile-dev
 libev-dev
 libuv-dev
 libglib2.0-dev
@@ -85,14 +82,27 @@ libxml++2.6-dev
 libxml2-dev
 liblzma-dev
 dpkg-dev
-
+scons
 
 Run the following command to install prerequisites via apt-get:
-$ sudo apt-get install cmake gcc-5 g++-5 libboost1.58-dev libboost-thread1.58-dev libboost-regex1.58-dev libboost-log1.58-dev libboost-program-options1.58-dev libboost1.58-all-dev libxerces-c-dev libcurl4-openssl-dev libsnmp-dev libmysqlclient-dev libjsoncpp-dev uuid-dev libusb-dev libusb-1.0-0-dev libftdi-dev swig liboctave-dev gpsd libgps-dev portaudio19-dev libsndfile1-dev libglib2.0-dev libglibmm-2.4-dev libpcre3-dev libsigc++-2.0-dev libxml++2.6-dev libxml2-dev liblzma-dev dpkg-dev libmysqlcppconn-dev libev-dev libuv-dev git
+$ sudo apt-get install cmake gcc-5 g++-5 libboost1.58-dev libboost-thread1.58-dev libboost-regex1.58-dev libboost-log1.58-dev libboost-program-options1.58-dev libboost1.58-all-dev libxerces-c-dev libcurl4-openssl-dev libsnmp-dev libmysqlclient-dev libjsoncpp-dev uuid-dev libusb-dev libusb-1.0-0-dev libftdi-dev swig liboctave-dev portaudio19-dev libsndfile1-dev libglib2.0-dev libglibmm-2.4-dev libpcre3-dev libsigc++-2.0-dev libxml++2.6-dev libxml2-dev liblzma-dev dpkg-dev libmysqlcppconn-dev libev-dev libuv-dev git scons
+
+Additional Dependencies
+-----------------------
+This version of V2I Hub utilizes a customized libgps on Ubuntu 16 and 18 for support of newer uBlox GPS receivers with RTK such as the ZED-F9P. The gpsd-release-3.21 sources files are already included with this V2I Hub repository. Make sure to compile and install this library before proceeding:
+
+$ cd V2I-Hub/gpsd-release-3.21
+$ sudo scons install
+
+Additionally, the libwebsockets 3.0 is used for the CommandPlugin, which is also included with this repository. To build and install:
+
+$ cd V2I-Hub/libwebsockets-3.0.0
+$ cmake -DLWS_WITH_SHARED=OFF .
+$ make 
+$ sudo make install
 
 Compilation Instructions
 ------------------------
-
 
 To Compile the V2I Hub software
 Run the following from the src directory
@@ -111,19 +121,8 @@ When the unit is rebooted this variable will not be set. To add the path at boot
 
 $ sudo ldconfig
 
-The V2I Hub supplied plugins have a dependency on a version of libwebsockets that is newer than the installable package that comes with Ubuntu 16.04.  Therefore, a custom version of the software needs to be downloaded and compiled locally before compiling the V2I Hub plugins.  Note this requires the GIT tool for checking out the latest version of the source code.
-
-$ cd <some tmp dir>
-$ git clone https://libwebsockets.org/repo/libwebsockets
-$ cd libwebsockets
-$ git checkout tags/v3.0.0
-$ cmake -DLWS_WITH_SHARED=OFF .
-$ make 
-$ sudo make install
-
-The new libwebsockets static library should now be available in /usr/local to build against.
-
-Now, run the following from the v2i-hub directory
+Now, run the following from the src directory
+$ cd v2i-hub
 $ cmake .
 $ make
 
