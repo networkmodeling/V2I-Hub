@@ -1,5 +1,5 @@
 "use strict";
-var componentLibraryJsVersion = "0.0.2";
+var componentLibraryJsVersion = "3.3.0";
 
 function ToggleCollapsible(target) {
     if (target != null && target != undefined) {

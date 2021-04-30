@@ -12,6 +12,8 @@
 #include <boost/lockfree/spsc_queue.hpp>
 #include <thread>
 
+#include "ThreadWorker.h"
+
 namespace tmx {
 namespace utils {
 
@@ -20,19 +22,12 @@ namespace utils {
  * capacity of each queue can be set, but it defaults to 2K.
  */
 template <typename InQueueT, typename OutQueueT = InQueueT, typename Capacity = boost::lockfree::capacity<20480> >
-class LockFreeThread {
+class LockFreeThread: public ThreadWorker {
 public:
 	typedef InQueueT incoming_item;
 	typedef OutQueueT outgoing_item;
 
-	LockFreeThread():_active(false), _inSize(0), _outSize(0) {}
-
-	virtual ~LockFreeThread() {
-		if (_thread) {
-			delete _thread;
-			_thread = NULL;
-		}
-	}
+	LockFreeThread() {}
 
 	/**
 	 * Insert into the incoming queue
@@ -41,8 +36,7 @@ public:
 	 * @return True if the item was inserted
 	 */
 	bool push(const incoming_item &item) {
-		if (_inQ.push(item)) {
-			_inSize++;
+		if (accept(item) && _inQ.push(item)) {
 			return true;
 		}
 
@@ -57,7 +51,6 @@ public:
 	 */
 	bool push_out(const outgoing_item &item) {
 		if (_outQ.push(item)) {
-			_outSize++;
 			return true;
 		}
 
@@ -72,7 +65,6 @@ public:
 	 */
 	bool pop(outgoing_item &item) {
 		if (_outQ.pop(item)) {
-			_outSize--;
 			return true;
 		}
 
@@ -80,63 +72,23 @@ public:
 	}
 
 	/**
-	 * Start the thread.  Unlike standard threads, these are not started at construction
-	 */
-	void start() {
-		_active = true;
-		_thread = new std::thread(&LockFreeThread::process, this);
-	}
-
-	/**
-	 * Stop the thread
-	 */
-	void stop() {
-		_active = false;
-		join();
-	}
-
-	/**
 	 * @return The size of the incoming queue
 	 */
 	uint64_t inQueueSize() {
-		uint64_t ret = _inSize;
-		return ret;
+		return _inQ.read_available();
 	}
 
 	/**
 	 * @return The size of the outgoing queue
 	 */
 	uint64_t outQueueSize() {
-		uint64_t ret = _outSize;
-		return ret;
+		return _outQ.read_available();
 	}
 
-	/**
-	 * Obtain the id of this thread
-	 *
-	 * @return The identifier object for this thread
-	 */
-	std::thread::id get_id() {
-		if (_thread)
-			return _thread->get_id();
-		else
-			return std::this_thread::get_id();
+	int Size() {
+		return inQueueSize();
 	}
 
-	/**
-	 * @return True if the thread is joinable
-	 */
-	bool joinable() {
-		return (_thread ? _thread->joinable() : false);
-	}
-
-	/**
-	 * Join the executing thread, if possible
-	 */
-	void join() {
-		if (joinable())
-			_thread->join();
-	}
 protected:
 	/**
 	 * The function that processes the items from the incoming queue.  It may or may not
@@ -148,27 +100,27 @@ protected:
 	 * A function that idlles the processor when there is nothing to process
 	 */
 	virtual void idle() = 0;
-private:
-	void process() {
-		while (_active) {
+
+	/**
+	 * By default, every incoming item is accepted into this thread, but that behavior can be modified by
+	 * overriding this method
+	 * @return True to process this item, false otherwise
+	 */
+	virtual bool accept(const incoming_item &item) { return true; }
+
+	void DoWork() {
+		while (IsRunning()) {
 			incoming_item item;
-			if (_inQ.pop(item)) {
+			if(_inQ.pop(item))
 				doWork(item);
-				_inSize--;
-			} else {
+			else
 				idle();
-			}
 		}
 	}
-
-	std::atomic<bool> _active;
-	std::thread *_thread = NULL;
 
 	// The lock free queues, both in and out
 	boost::lockfree::spsc_queue<incoming_item, Capacity> _inQ;
 	boost::lockfree::spsc_queue<outgoing_item, Capacity> _outQ;
-	std::atomic<uint64_t> _inSize;
-	std::atomic<uint64_t> _outSize;
 };
 
 }} // namespace tmx::utils

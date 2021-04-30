@@ -19,23 +19,48 @@ namespace utils {
  */
 class ThreadWorker {
 public:
+	/***
+	 * Construct a new background worker.  The background worker is stopped,
+	 * and will invoke the DoWork() function when started.
+	 */
 	ThreadWorker();
 	virtual ~ThreadWorker();
 
 	/**
 	 * Start the thread worker.
 	 */
-	void Start();
+	virtual void Start();
 
 	/**
 	 * Stop the thread worker.
 	 */
-	void Stop();
+	virtual void Stop();
 
 	/**
 	 * @return True if the background worker is currently running.
 	 */
-	bool IsRunning();
+	virtual bool IsRunning();
+
+	/**
+	 * @return The thread id of this worker
+	 */
+	virtual std::thread::id Id();
+
+	/**
+	 * @return True if the background worker can be joined.
+	 */
+	virtual bool Joinable();
+
+	/**
+	 * Join the background worker
+	 */
+	virtual void Join();
+
+	/**
+	 * @return The size of the background worker task queue, if one exists
+	 */
+	virtual int Size();
+
 
 protected:
 	/**
@@ -55,10 +80,9 @@ protected:
 	/**
 	 * When this value is set to false (by the StopWorker method), the DoWork method should exit.
 	 */
-	std::atomic<bool> _stopThread{false};
+	std::atomic<bool> _active {false};
 
-private:
-	std::thread* _thread = NULL;
+	std::thread *_thread = NULL;
 };
 
 } /* namespace utils */

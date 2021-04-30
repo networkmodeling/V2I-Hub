@@ -112,7 +112,7 @@ private:
 };
 
 template <>
-void RtcmMessageFactory::registerTypes<UNKNOWN>() {
+inline void RtcmMessageFactory::registerTypes<UNKNOWN>() {
 	registrarDispatch<UNKNOWN>();
 }
 

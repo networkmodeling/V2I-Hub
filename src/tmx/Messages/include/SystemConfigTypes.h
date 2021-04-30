@@ -22,16 +22,20 @@
 #define CONSTEXPR __attribute__ ((unused))
 #else
 #define CONSTEXPR
-#endif
-#endif
+#endif /* __GNUC__ */
+#endif /* __cplusplus > 199711L */
 #endif
 
+#if __cplusplus >= 201103L
+#include <tmx/utils/Enum.hpp>
+#endif /* __cplusplus >= 201103L */
 		
 	
 namespace tmx {
+	
 		
 namespace messages {
-			
+	
 			
 enum class NotificationMode 
 {
@@ -41,16 +45,39 @@ enum class NotificationMode
 		All = 3
 };
 		
-		
 static CONSTEXPR const char *NOTIFICATIONMODE_NONE_STRING = "None";
 static CONSTEXPR const char *NOTIFICATIONMODE_AUDIBLE_STRING = "Audible";
 static CONSTEXPR const char *NOTIFICATIONMODE_VISUAL_STRING = "Visual";
 static CONSTEXPR const char *NOTIFICATIONMODE_ALL_STRING = "All";
 		
+static CONSTEXPR const char *NOTIFICATIONMODE_ALL_STRINGS[] = 
+{
+		NOTIFICATIONMODE_NONE_STRING,
+		NOTIFICATIONMODE_AUDIBLE_STRING,
+		NOTIFICATIONMODE_VISUAL_STRING,
+		NOTIFICATIONMODE_ALL_STRING
+};
+		
+		
 } /* End namespace messages */
+		
 	
 } /* End namespace tmx */
-
 		
+
+#if __cplusplus >= 201103L
+		
+template <tmx::messages::NotificationMode V> struct tmx::EnumName<tmx::messages::NotificationMode, V> {
+	static constexpr const char *name = tmx::messages::NOTIFICATIONMODE_ALL_STRINGS[static_cast<size_t>(V)];
+};
+template <> struct tmx::EnumSequenceBuilder<tmx::messages::NotificationMode> {
+	typedef EnumSequence<tmx::messages::NotificationMode,
+		tmx::messages::NotificationMode::None,
+		tmx::messages::NotificationMode::Audible,
+		tmx::messages::NotificationMode::Visual,
+		tmx::messages::NotificationMode::All> type;
+};
+	
+#endif /* __cplusplus >= 201103L */ 
 #endif /* INCLUDE_SYSTEMCONFIGTYPES_H_ */
 	

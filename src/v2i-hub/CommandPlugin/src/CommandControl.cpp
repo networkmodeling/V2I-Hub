@@ -448,7 +448,14 @@ void CommandPlugin::BuildFullTelemetry(string *outputBuffer, string dataType)
 		}
 		else
 		{
-			outputBuffer->append(output);
+			if (output == "")
+			{
+				//empty payload
+				outputBuffer->append("{}");
+			}
+			else
+				outputBuffer->append(output);
+
 		}
 		//string outputPart = output.substr(0, output.find("TMX UI Vehicle") - 2);
 		//outputPart.append("}");

@@ -1,6 +1,6 @@
 "use strict"; 
 
-var fileUploadLibraryJsVersion = "0.0.1";
+var fileUploadLibraryJsVersion = "3.3.0";
 
 var clearUploadProgressTimer = null;
 var uploadFileType = null;

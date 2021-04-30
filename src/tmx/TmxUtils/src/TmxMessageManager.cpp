@@ -12,77 +12,106 @@
 #include "ThreadGroup.h"
 
 #include <condition_variable>
+#include <memory>
 #include <tmx/j2735_messages/J2735MessageFactory.hpp>
-
-#define MAX_USEC_SLEEP 50000
 
 namespace tmx {
 namespace utils {
 
-enum incomingMessageType {
-	type_RawBytes = 0,
-	type_IvpMessage
-};
-
-struct rawIncomingMessage {
+struct MessageStruct {
 	uint8_t groupId;
 	uint8_t uniqId;
-	uint64_t timestamp;
+	uint64_t timestamp ;
+	char * encoding;
+	byte_t * msgBytes;
+	uint64_t msgLen;
 	TmxMessageManager *mgr;
-	void *message;
-	incomingMessageType type;
-	char *encoding;
 };
 
-struct rawOutgoingMessage {
-	uint8_t groupId;
-	uint8_t uniqId;
-	tmx::routeable_message *msg;
-};
-
-class RxThread: public LockFreeThread<rawIncomingMessage, rawOutgoingMessage> {
+class RxThread: public LockFreeThread<MessageStruct> {
 public:
 	RxThread() {}
 	~RxThread() {}
+
+	bool accept(const MessageStruct &in);
+	bool push(const MessageStruct &in);
+	void wait();
+	void notify();
+	void Join();
 protected:
-	void doWork(rawIncomingMessage &msg);
+	void doWork(MessageStruct &msg);
 	void idle();
 private:
-	// Each thread keeps its own additive increasing, multiplicative decreasing sleep time
-	double usecSleep = 0;
+	std::condition_variable cv;
+	std::mutex _cvLock;
+	std::unique_lock<mutex> lock { _cvLock };
 };
 
 static std::atomic<uint16_t> overflow {DEFAULT_OVERFLOW_CAPACITY};
-static constexpr uint8_t sleepInc = 10;
-static constexpr double sleepDec = 1.0 / sleepInc;
 
 // The workerThreads
-typedef tmx::utils::ThreadGroup<RxThread> RxThreadGroup;
-static RxThreadGroup workerThreads;
+static ThreadGroup workerThreads;
+static ThreadGroupAssignment<uint8_t> threadAssign { workerThreads };
 
 // The output thread
-std::atomic<bool> outRun;
-static std::thread *outThread;
+class OutputThread: public ThreadWorker {
+public:
+	static OutputThread &instance() {
+		static OutputThread _instance;
+		return _instance;
+	}
+
+	void wait();
+	void notify();
+
+	TmxMessageManager *manager = NULL;
+protected:
+	void DoWork();
+private:
+	std::condition_variable cv;
+	std::mutex _cvLock;
+	std::unique_lock<mutex> lock { _cvLock };
+};
 
 std::mutex _threadLock;
-std::mutex _waitLock;
 
 // This static factory initializes the map data for future use
 static tmx::messages::J2735MessageFactory factory;
 
-static std::condition_variable cv;
-
-bool IsByteHexEncoded(const char *encoding)
+bool IsByteHexEncoded(const std::string &encoding)
 {
-	if (!encoding) return false;
+	if (encoding.empty()) return false;
 
 	// All must end in hexstring
 	static const std::string hexstring("hexstring");
 
-	std::string enc(encoding);
-	return (enc.find(hexstring) == enc.length() - hexstring.size());
+	return (encoding.find(hexstring) == encoding.length() - hexstring.size());
 }
 
+void RxThread::Join() {
+	this->notify();
+	ThreadWorker::Join();
+}
+
+void RxThread::wait() {
+	FILE_LOG(logDEBUG3) << this->Id() << ": Waiting for next item in queue: queue size=" << this->inQueueSize();
+
+	// Wait until an item appears in the queue
+	this->cv.wait(this->lock, std::bind(&RxThread::inQueueSize, this));
+	FILE_LOG(logDEBUG3) << this->Id() << ": Awake: queue size=" << this->inQueueSize();
+}
+
+void RxThread::notify() {
+	this->cv.notify_one();
+}
+
+bool RxThread::accept(const MessageStruct &in) {
+	if (in.mgr) {
+		return in.mgr->Accept(in.groupId, in.uniqId);
+	}
+
+	return true;
+}
 
 /**
  * The incoming message handler will take the incoming message, construct
@@ -90,91 +119,85 @@ bool IsByteHexEncoded(const char *encoding)
  * the appropriate handler for that message.  The handlers must have been
  * registed already by the plugin.
  */
-void RxThread::doWork(rawIncomingMessage &msg) {
-	static std::atomic<bool> warn {false};
+void RxThread::doWork(MessageStruct &msg) {
+	std::unique_ptr<tmx::routeable_message> routeableMsg;
 
-	uint16_t currentOverflow = overflow;
+	tmx::byte_stream bytes;
 
-	FILE_LOG(logDEBUG2) << "Current overflow value is " << currentOverflow;
-	if (currentOverflow > 0 && this->inQueueSize() > currentOverflow)
-	{
-		if (!warn)
-		{
-			FILE_LOG(logWARNING) << "Dropping messages due to incoming queue size above overflow size of "
-					<< currentOverflow;
-			warn = true;
-		}
+	string enc;
+	if (msg.encoding) {
+		enc.assign(msg.encoding);
 
-		// We are dropping incoming messages from the front of the queue in order to get to more relevant ones
-		return;
+		FILE_LOG(logDEBUG4) << "RxThread encoding ptr is '" << (uint64_t)msg.encoding << "'";
+		// This was a source of leaking memory, so delete here.
+		free(msg.encoding);
+		msg.encoding = NULL;
 	}
 
-	// Warn again the next time the queue gets too full
-	warn = false;
+	// Default null encoding case is a basic string
+	if (enc.empty())
+		enc = messages::api::ENCODING_STRING_STRING;
 
-	tmx::routeable_message *routeableMsg = NULL;
+	if (msg.msgBytes && msg.msgLen > 0) {
+		bytes.resize(msg.msgLen);
+		memcpy(bytes.data(), msg.msgBytes, msg.msgLen);
+		FILE_LOG(logDEBUG4) << "RxThread msgBytes ptr is '" << (uint64_t)msg.msgBytes << "'";
+	}
 
-	if (msg.message) {
-		tmx::byte_stream *bytes = NULL;
-		IvpMessage *ivpMsg = NULL;
+	free(msg.msgBytes);
+	msg.msgBytes = NULL;
 
-		switch (msg.type)
-		{
-		case type_RawBytes:
-			bytes = static_cast<tmx::byte_stream *>(msg.message);
-			if (bytes) {
-				if (IsByteHexEncoded(msg.encoding)) {
+	try {
+		if (bytes.size()) {
+			if (IsByteHexEncoded(enc)) {
+				if (enc != messages::api::ENCODING_BYTEARRAY_STRING) {
 					// New factory needed to avoid race conditions
 					tmx::messages::J2735MessageFactory myFactory;
 
-					FILE_LOG(logDEBUG4) << this->get_id() << ": Decoding from bytes " << *bytes;
+					FILE_LOG(logDEBUG4) << this->Id() << ": Decoding from bytes " << bytes;
 
 					// Bytes are encoded.  First try to convert to a J2735 message
-					routeableMsg = myFactory.NewMessage(*bytes);
+					routeableMsg.reset(myFactory.NewMessage(bytes));
 
-					if (!routeableMsg) {
-						FILE_LOG(logDEBUG4) << "Not a J2735 message: " << myFactory.get_event();
-
-						// Set the bytes directly as unknown type
-						routeableMsg = new routeable_message();
-						routeableMsg->set_payload_bytes(*bytes);
-						if (msg.encoding)
-							routeableMsg->set_encoding(msg.encoding);
-					}
-				} else {
-					// Just use a regular string
-					std::string str((const char *)bytes->data(), bytes->size());
-					routeableMsg = new tmx::routeable_message();
-
-					string encoding(msg.encoding ? msg.encoding : tmx::messages::api::ENCODING_STRING_STRING);
-					routeableMsg->set_encoding(encoding);
-					if (strncmp("json", encoding.c_str(), 4) == 0) {
-						tmx::message jsonMsg;
-						jsonMsg.set_contents(str);
-						routeableMsg->set_payload(jsonMsg);
-					} else {
-						routeableMsg->set_payload(str);
-						routeableMsg->set_encoding(encoding);
-					}
+					if (!routeableMsg)
+						FILE_LOG(logDEBUG4) << this->Id() << ": Not a J2735 message: " << myFactory.get_event();
 				}
 
-				delete bytes;
-				msg.message = NULL;
-			}
-			break;
-		case type_IvpMessage:
-			ivpMsg = static_cast<IvpMessage *>(msg.message);
-			if (ivpMsg) {
-				routeableMsg = new tmx::routeable_message(ivpMsg);
+				if (!routeableMsg) {
+					// Set the bytes directly as unknown type
+					routeableMsg.reset(new routeable_message());
+					routeableMsg->set_payload_bytes(bytes);
+					routeableMsg->set_encoding(enc);
+				}
+			} else {
+				// Just use a regular string
+				std::string str((const char *)bytes.data(), bytes.size());
+				routeableMsg.reset(new tmx::routeable_message());
+				routeableMsg->set_encoding(enc);
+				if (strncmp("json", enc.c_str(), 4) == 0) {
+					routeableMsg->set_contents(str);
+					routeableMsg->reinit();
 
-				ivpMsg_destroy(ivpMsg);
-				msg.message = NULL;
+					FILE_LOG(logDEBUG4) << this->Id() << ": Decoding JSON " << *routeableMsg;
+
+					// If the payload attribute is missing, then this was probably
+					// a JSON payload.
+					if (routeableMsg->get_payload_str().empty()) {
+						FILE_LOG(logDEBUG4) << this->Id() << ": Routeable message not found, assuming payload " << *routeableMsg;
+						routeableMsg.reset(new tmx::routeable_message());
+
+						message jsonMsg(str);
+						routeableMsg->set_payload(jsonMsg);
+						routeableMsg->reinit();
+					}
+				} else {
+					routeableMsg->set_payload(str);
+					routeableMsg->set_encoding(enc);
+				}
 			}
-			break;
 		}
-
-		free(msg.encoding);
-		msg.encoding = NULL;
+	} catch (exception &ex) {
+		FILE_LOG(logERROR) << this->Id() << ": Failed to create message from incoming bytes: " << msg.msgBytes << ": " << ex.what();
 	}
 
 	// Invoke the handler
@@ -185,70 +208,101 @@ void RxThread::doWork(rawIncomingMessage &msg) {
 		if (msg.mgr)
 			msg.mgr->OnMessageReceived(*routeableMsg);
 
-		delete routeableMsg;
+		routeableMsg.reset();
 	}
 
 	// After other messages are sent out, then push a message to clean up for this thread assignment
-	rawOutgoingMessage out;
-	out.groupId = msg.groupId;
-	out.uniqId = msg.uniqId;
-	out.msg = NULL;
-	this->push_out(out);
-	cv.notify_one();
-
-	// If items are queued already, use a multiplicative decrease
-	// This should be thread-safe since doWork and idle are mutually exclusive
-	if (this->inQueueSize() > 1 && usecSleep > 0)
-		usecSleep *= sleepDec;
+	msg.msgBytes = NULL;
+	msg.msgLen = 0;
+	if (this->push_out(msg)) {
+		OutputThread::instance().notify();
+	} else {
+		FILE_LOG(logWARNING) << "Cleanup message for " << msg.groupId << "/" << msg.uniqId << " lost when push failed";
+	}
 
 	this_thread::yield();
 }
 
 void RxThread::idle() {
 	this_thread::yield();
+	wait();
+}
 
-	usleep((uint32_t)usecSleep);
+bool RxThread::push(const MessageStruct &in) {
+	if (!this->IsRunning()) {
+		FILE_LOG(logERROR) << "Thread " << this->Id() << " has unexpectedly shutdown";
+		return false;
+	}
 
-	// If no items are queued, use an additive increase
-	// This should be thread-safe since doWork and idle are mutually exclusive
-	if (this->inQueueSize() < 1 && usecSleep < MAX_USEC_SLEEP)
-		usecSleep += sleepInc;
+	bool success = LockFreeThread::push(in);
+	if (success) {
+		FILE_LOG(logDEBUG3) << "Notifying thread " << this->Id() << " of new IVP message";
+		this->notify();
+	}
+
+	return success;
 }
 
 bool available_messages() {
-	for (size_t i = 0; i < workerThreads.size(); i++)
-		if (workerThreads[i].outQueueSize()) return true;
+	size_t numThreads = OutputThread::instance().manager->NumThreads();
+	for (size_t i = 0; i < numThreads; i++)
+	{
+		RxThread *t = dynamic_cast<RxThread *>(workerThreads[i]);
+		if (t && t->outQueueSize()) return true;
+	}
 
 	return false;
+}
+
+void OutputThread::wait() {
+	this->cv.wait(lock, std::bind(&available_messages));
+}
+
+void OutputThread::notify() {
+	this->cv.notify_one();
 }
 
 /**
  * The outgoing thread will pop the messages coming off of the outgoing
  * queues of each worker thread and broadcast any message that was created.
  */
-void RunOutputThread(TmxMessageManager *mgr) {
-	outRun = true;
+void OutputThread::DoWork() {
+	MessageStruct msg;
 
-	rawOutgoingMessage outMsg;
-
-	while (run) {
-		unique_lock<mutex> lock(_waitLock);
-		cv.wait(lock, available_messages);
+	while (IsRunning()) {
+		this->wait();
 
 		// Loop over each thread in the thread group
-		for (size_t i = 0; i < workerThreads.size(); i++) {
-			if (workerThreads[i].pop(outMsg)) {
-				if (outMsg.msg) {
-					outMsg.msg->flush();
-					if (mgr)
-						mgr->OutgoingMessage(*(outMsg.msg), true);
-					delete outMsg.msg;
+		size_t numThreads = OutputThread::instance().manager->NumThreads();
+		for (size_t i = 0; i < numThreads; i++) {
+			RxThread *t = dynamic_cast<RxThread *>(workerThreads[i]);
+			if (t && t->pop(msg)) {
+				if (msg.mgr) {
+					if (msg.msgBytes && msg.msgLen > 0) {
+						string msgStr { (const char *)msg.msgBytes, msg.msgLen };
+						routeable_message rMsg { msgStr };
+						rMsg.reinit();
+
+						msg.mgr->OutgoingMessage(rMsg, true);
+					}
+
+					msg.mgr->Cleanup(msg.groupId, msg.uniqId);
 				}
 
-				if (mgr)
-					mgr->Cleanup(outMsg.groupId, outMsg.uniqId);
+				if (msg.encoding) {
+					FILE_LOG(logDEBUG4) << "OutputThread encoding ptr is '" << (uint64_t)msg.encoding << "'";
+					free(msg.encoding);
+					msg.encoding = NULL;
+				}
+
+				if (msg.msgBytes) {
+					FILE_LOG(logDEBUG4) << "OutputThread msgBytes ptr is '" << (uint64_t)msg.msgBytes << "'";
+					free(msg.msgBytes);
+					msg.msgBytes = NULL;
+				}
 			}
 		}
+
 	}
 }
 
@@ -260,35 +314,56 @@ TmxMessageManager::~TmxMessageManager() {
 	this->Stop();
 }
 
+size_t TmxMessageManager::NumThreads() {
+	// This is ok because the size never shrinks
+	return _numThreads;
+}
+
+bool TmxMessageManager::Accept(tmx::byte_t groupId, tmx::byte_t uniqId) {
+	static std::atomic<bool> warn {false};
+	uint16_t currentOverflow = overflow;
+
+	// Check the current size of this thread
+	RxThread *thread = NULL;
+	int id = workerThreads.this_thread();
+	if (id >= 0)
+		thread = dynamic_cast<RxThread *>(workerThreads[id]);
+
+	if (thread == NULL) return true;
+
+	FILE_LOG(logDEBUG4) << "Current overflow value is " << currentOverflow;
+	if (currentOverflow > 0 && thread->inQueueSize() > currentOverflow)
+	{
+		if (!warn)
+		{
+			FILE_LOG(logWARNING) << "Dropping messages due to incoming queue size above overflow size of "
+					<< currentOverflow;
+			warn = true;
+		}
+
+		// We are dropping incoming messages from the front of the queue in order to get to more relevant ones
+		return false;
+	}
+
+	// Warn again the next time the queue gets too full
+	warn = false;
+	return true;
+}
+
 void TmxMessageManager::Cleanup(tmx::byte_t groupId, tmx::byte_t uniqId) {
 	PLOG(logDEBUG4) << "Unassigning " << (int)groupId << ":" << (int)uniqId;
-	workerThreads.unassign(groupId, uniqId);
+	threadAssign.unassign(groupId, uniqId);
 }
 
 void TmxMessageManager::IncomingMessage(const IvpMessage *msg, byte_t groupId, byte_t uniqId, uint64_t timestamp) {
 	if (!msg) return;
 
-	// It was tempting to pass  the C++ object pointer to the thread,
-	// but a big part of the purpose behind this class is throughput.
-	// Constructing the C++ routeable_message object requires too much
-	// overhead due to the attribute container.  Therefore, it is best
-	// to pass the smaller C structure.
+	IvpMessage *ivpMsg = const_cast<IvpMessage *>(msg);		// The API functions do not use a const pointer
+	char *jsonStr = ivpMsg_createJsonString(ivpMsg, IvpMsg_FormatOptions_none);
+	string json { jsonStr };
+	free(jsonStr);
 
-	// Need a copy of the message
-	IvpMessage *copy = ivpMsg_copy(const_cast<IvpMessage *>(msg));
-
-	rawIncomingMessage in;
-	in.groupId = groupId;
-	in.uniqId = uniqId;
-	in.timestamp = timestamp;
-	in.mgr = this;
-	in.message = copy;
-	in.type = type_IvpMessage;
-	in.encoding = strdup(msg->encoding);
-
-	PLOG(logDEBUG4) << "Assigning " << msg->type << "/" << msg->subtype <<
-			" message from " << msg->source << " as " << (int)groupId << ":" << (int)uniqId;
-	workerThreads.assign(groupId, uniqId, in);
+	this->IncomingMessage(json, messages::api::ENCODING_JSON_STRING, groupId, uniqId, timestamp);
 }
 
 void TmxMessageManager::IncomingMessage(const tmx::routeable_message &msg, byte_t groupId, byte_t uniqId, uint64_t timestamp) {
@@ -297,24 +372,63 @@ void TmxMessageManager::IncomingMessage(const tmx::routeable_message &msg, byte_
 }
 
 void TmxMessageManager::IncomingMessage(const tmx::byte_t *bytes, size_t size, const char *encoding, byte_t groupId, byte_t uniqId, uint64_t timestamp) {
+	// It was tempting to pass  the C++ object pointer to the thread,
+	// but a big part of the purpose behind this class is throughput.
+	// Constructing the C++ routeable_message object requires too much
+	// overhead due to the attribute container.  Therefore, it is best
+	// to pass the byte representation of the message.
+	//	The encoding determines how to interpret the bytes.
+	//	This could be:
+	// 	(1) An ASN.1 encoded message, e.g. "asn.1-ber/hexstring" or "asn.1-uper/hexstring" (the default)
+	//		If this is a J2735 message, the type/subtype is determined upon receipt
+	//	(2) A set of raw, unencoded bytes, e.g. "bytearray/hexstring"
+	//		The type/subtype of the message is Unknown
+	//	(3) A literal string message, e.g. "string". The default for a NULL encoding
+	//		The type/subtype of the message is Unknown
+	//	(4)	An XML string message, e.g. "xmlstring"
+	//		The type/subtype of the message is Unknown
+	//	(5)	A JSON string message, e.g. "json". Should be used in common cases to pass type/subtype
+	//		The type/subtype may be embedded in the JSON.
+
+
 	if (!bytes)
 		return;
 
-	// Need a copy of the bytes
-	byte_stream *copy = new tmx::byte_stream(size);
-	memcpy(copy->data(), bytes, size);
-
-	rawIncomingMessage in;
+	MessageStruct in;
 	in.groupId = groupId;
 	in.uniqId = uniqId;
 	in.timestamp = timestamp;
+	in.encoding = (encoding == NULL ? NULL : strdup(encoding));
 	in.mgr = this;
-	in.message = copy;
-	in.type = type_RawBytes;
-	in.encoding = encoding ? strdup(encoding) : NULL;
 
-	PLOG(logDEBUG4) << "Assigning message bytes " << *copy << " as " << (int)groupId << ":" << (int)uniqId;
-	workerThreads.assign(groupId, uniqId, in);
+	// Copy the bytes encoded as a hex-encoded string
+	in.msgLen = size;
+	in.msgBytes = (tmx::byte_t *) calloc(in.msgLen, sizeof(tmx::byte_t));
+	if (in.msgBytes)
+		memcpy(in.msgBytes, bytes, in.msgLen);
+
+	PLOG(logDEBUG4) << "Incoming encoding ptr is '" << (uint64_t)in.encoding << "'";
+	PLOG(logDEBUG4) << "Incoming msgBytes ptr is '" << (uint64_t)in.msgBytes << "'";
+	RxThread *thread = NULL;
+
+	tmx::byte_stream copy { bytes, bytes + size };
+
+	do
+	{
+
+		int id = threadAssign.assign(groupId, uniqId);
+		if (id < 0)
+			return;
+
+		PLOG(logDEBUG4) << "Assigning message bytes " << copy << " as " << (int)groupId << ":" << (int)uniqId << " to thread " << id;
+
+		thread = dynamic_cast<RxThread *>(workerThreads[id]);
+
+	} while (thread == NULL);
+
+	if (!thread->push(in)) {
+		PLOG(logDEBUG3) << "Message " << copy << " lost when push failed";
+	}
 }
 
 void TmxMessageManager::IncomingMessage(const tmx::byte_stream &bytes, const char *encoding, tmx::byte_t groupId, tmx::byte_t uniqId, uint64_t timestamp) {
@@ -322,15 +436,12 @@ void TmxMessageManager::IncomingMessage(const tmx::byte_stream &bytes, const cha
 }
 
 void TmxMessageManager::IncomingMessage(std::string strBytes, const char *encoding, byte_t groupId, byte_t uniqId, uint64_t timestamp) {
-	if (encoding) {
+	string enc = (encoding ? encoding : "");
 
-		// Extract the bytes as a hexstring
-		std::stringstream ss(strBytes);
-		byte_stream bytes;
-		ss >> bytes;
-
-		this->IncomingMessage(bytes, encoding, groupId, uniqId, timestamp);
-	}
+	if (IsByteHexEncoded(enc))
+		this->IncomingMessage(byte_stream_decode(strBytes), encoding, groupId, uniqId, timestamp);
+	else
+		this->IncomingMessage((byte_t *)strBytes.data(), strBytes.size(), encoding, groupId, uniqId, timestamp);
 }
 
 void TmxMessageManager::OutgoingMessage(const tmx::routeable_message &msg, bool immediate) {
@@ -350,25 +461,40 @@ void TmxMessageManager::OutgoingMessage(const tmx::routeable_message &msg, bool 
 			lastId = 0;
 	}
 
-	rawOutgoingMessage out;
+	stringstream ss;
+	ss << msg;
+
+	MessageStruct out;
 	out.groupId = 0;
 	out.uniqId = 0;
-	out.msg = new tmx::routeable_message(msg);
-	workerThreads[id].push_out(out);
-	cv.notify_one();
+	out.encoding = strdup(messages::api::ENCODING_JSON_STRING);
+	out.mgr = this;
+	out.msgLen = ss.str().length();
+	out.msgBytes = (tmx::byte_t *) calloc(out.msgLen, sizeof(tmx::byte_t));
+	if (out.msgBytes)
+		memcpy(out.msgBytes, ss.str().c_str(), out.msgLen);
+
+	PLOG(logDEBUG4) << "Outgoing encoding ptr is '" << (uint64_t)out.encoding << "'";
+	PLOG(logDEBUG4) << "Outgoing msgBytes ptr is '" << (uint64_t)out.msgBytes << "'";
+
+	RxThread *thread = dynamic_cast<RxThread *>(workerThreads[id]);
+	if (thread)
+	{
+		if (thread->push_out(out)) {
+			OutputThread::instance().notify();
+		} else {
+			PLOG(logWARNING) << "Message " << msg << " lost when push failed";
+		}
+	}
 
 	this_thread::yield();
 }
 
-void TmxMessageManager::OnMessageReceived(tmx::routeable_message &msg) {
-	msg.flush();
-	PLOG(logDEBUG4) << "Handling message " << msg;
+void TmxMessageManager::OnMessageReceived(const tmx::routeable_message &msg) {
 	return PluginClient::OnMessageReceived(const_cast<IvpMessage *>(msg.get_message()));
 }
 
 void TmxMessageManager::OnMessageReceived(IvpMessage *msg) {
-	PluginClient::OnMessageReceived(msg);
-
 	if (msg)
 		this->IncomingMessage(msg, 0, 0, msg->timestamp);
 }
@@ -383,7 +509,7 @@ void TmxMessageManager::OnConfigChanged(const char *key, const char *value) {
 			Start();
 		}
 	} else if (strcmp(ASSIGNMENT_STRATEGY_CFG, key) == 0) {
-		workerThreads.set_strategy(value);
+		threadAssign.set_strategy(value);
 	} else if (strcmp(OVERFLOW_CAPACITY_CFG, key) == 0) {
 		uint16_t n = strtoul(value, NULL, 0);
 		if (n != overflow)
@@ -404,7 +530,7 @@ void TmxMessageManager::OnStateChange(IvpPluginState state) {
 
 		string s = DEFAULT_ASSIGNENT_STRATEGY;
 		GetConfigValue(ASSIGNMENT_STRATEGY_CFG, s);
-		workerThreads.set_strategy(s);
+		threadAssign.set_strategy(s);
 
 		GetConfigValue(OVERFLOW_CAPACITY_CFG, overflow);
 
@@ -416,35 +542,44 @@ void TmxMessageManager::OnStateChange(IvpPluginState state) {
 bool TmxMessageManager::IsRunning() {
 	lock_guard<mutex> lock(_threadLock);
 
-	for (size_t i = 0; i < workerThreads.size(); i++)
-		if (!workerThreads[i].joinable()) return false;
+	if (!workerThreads.IsRunning()) return false;
 
 	return run;
 }
 
 void TmxMessageManager::Start() {
+	auto &ot = OutputThread::instance();
+
+	ot.manager = this;
+
+	if (!ot.IsRunning()) {
+		PLOG(logDEBUG) << "Starting output thread";
+		ot.Start();
+	}
+
 	size_t n = _numThreads;
 
 	PLOG(logDEBUG) << "Starting " << n << " message manager worker threads";
 
 	lock_guard<mutex> lock(_threadLock);
 
-	// Only support an increase in the number threads
-	if (n > workerThreads.size())
-		workerThreads.set_size(n);
+	threadAssign.Group() = workerThreads;
 
-	if (!outThread)
-		outThread = new std::thread(&RunOutputThread, this);
+	// Only support an increase in the number threads
+	while (n > workerThreads.size())
+		workerThreads.push_back(new RxThread());
+
+	workerThreads.Start();
 }
 
 void TmxMessageManager::Stop() {
 	lock_guard<mutex> lock(_threadLock);
 
-	workerThreads.stop();
+	workerThreads.Stop();
 
-	outRun = false;
-	if (outThread && outThread->joinable())
-		outThread->join();
+	auto &outThread = OutputThread::instance();
+	if (outThread.Joinable())
+		outThread.Join();
 }
 
 }} // namespace tmx::utils

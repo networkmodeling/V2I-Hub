@@ -23,17 +23,29 @@ std::mutex lock;
 DbConnectionPool::DbConnectionPool(): _connectStr("tcp://127.0.0.1:3306") {}
 
 DbConnection DbConnectionPool::Connection(string connectionUrl, string username, string password, string db) {
+	DbConnectionInformation _connInfo;
+	_connInfo.url = connectionUrl;
+	_connInfo.username = username;
+	_connInfo.password = password;
+	_connInfo.db = db;
+
+	return Connection(_connInfo);
+}
+
+DbConnection DbConnectionPool::Connection(const DbConnectionInformation &connectionInfo) {
+	DbConnectionInformation _connInfo = connectionInfo;
+
 	lock_guard<mutex> lg(lock);
 
-	if (connectionUrl.empty())
-		connectionUrl = _connectStr;
+	if (_connInfo.url.empty())
+		_connInfo.url = _connectStr;
 
-	PLOG(logDEBUG2) << "Current pool size is " << pool.size();
+	FILE_LOG(logDEBUG2) << "Current pool size is " << pool.size();
 
 	size_t i;
 	int firstClosed = -1;
 	for (i = 0; i < pool.size(); i++) {
-		PLOG(logDEBUG2) << "[" << i << "] " << pool[i]._connection.use_count() << " uses.";
+		FILE_LOG(logDEBUG2) << "[" << i << "] " << pool[i]._connection.use_count() << " uses.";
 
 		if (pool[i]._connection.use_count() <= 1) {
 			// Always prefer an open connection, but if one does not exist
@@ -46,7 +58,7 @@ DbConnection DbConnectionPool::Connection(string connectionUrl, string username,
 	}
 
 	if (i < pool.size()) {
-		PLOG(logDEBUG2) << "Found an unused connection at index " << i;
+		FILE_LOG(logDEBUG2) << "Found an unused connection at index " << i;
 		DbConnection newConn(pool[i]);
 		pool[i] = newConn;
 		return newConn;
@@ -54,7 +66,7 @@ DbConnection DbConnectionPool::Connection(string connectionUrl, string username,
 
 	// There may be a closed connection
 	if (firstClosed >= 0) {
-		PLOG(logDEBUG2) << "Found a closed connection object at index " << firstClosed;
+		FILE_LOG(logDEBUG2) << "Found a closed connection object at index " << firstClosed;
 		DbConnection reinit(pool[firstClosed]);
 		pool[firstClosed] = reinit;
 		return reinit;
@@ -66,9 +78,9 @@ DbConnection DbConnectionPool::Connection(string connectionUrl, string username,
 	}
 
 	// Add a new instance to the pool
-	PLOG(logDEBUG2) << "Adding a new connection to the pool";
+	FILE_LOG(logDEBUG2) << "Adding a new connection to the pool";
 
-	pool.emplace_back(connectionUrl, username, password, db);
+	pool.emplace_back(_connInfo);
 	return DbConnection(pool[i]);
 }
 

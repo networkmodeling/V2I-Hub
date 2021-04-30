@@ -10,6 +10,7 @@
 
 #include "WGS84Point.h"
 #include "Units.h"
+#include "Measurement.h"
 
 namespace tmx {
 namespace utils {

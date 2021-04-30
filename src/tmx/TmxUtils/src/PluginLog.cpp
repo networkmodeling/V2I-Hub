@@ -154,7 +154,7 @@ void Output2Eventlog::Output(LogMessage &msg)
 
 	if (!started)
 	{
-		_eventThread.start();
+		_eventThread.Start();
 		started = true;
 	}
 

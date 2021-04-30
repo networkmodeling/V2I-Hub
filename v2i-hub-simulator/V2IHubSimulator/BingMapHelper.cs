@@ -11,7 +11,7 @@ namespace V2IHubSimulator
 {
     public class BingMapHelper
     {
-        private const string BingMapsKey = "bKGFmEQg~Ag5F4l4qW2jRm7cJhtacMVtQK3udtPtfRcrWAOTOhNbr88pML_bQ1saS7NH3cYon";
+        private const string BingMapsKey = "2EM5lvScrVASVXl4VQDw~0X-QWiFIg-0Ir8v1_IIg5g~AoPLKIpEDWvseXCMLubjhzL5P6JCW6GXyXSs7urNLu5YhGRPJvUjqGmdNeROSdno";
         public static Location SearchBingMaps(String searchString)
         {
             //Create REST Services geocode request using Locations API

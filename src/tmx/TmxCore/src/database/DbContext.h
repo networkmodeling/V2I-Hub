@@ -18,16 +18,7 @@
 #include <cppconn/resultset.h>
 #include <cppconn/resultset_metadata.h>
 #include <cppconn/statement.h>
-#include "mysql_driver.h"
-#include "mysql_connection.h"
-
-
-struct DbConnectionInformation {
-	std::string url;
-	std::string username;
-	std::string password;
-	std::string db;
-};
+#include <database/DbConnectionPool.h>
 
 typedef sql::SQLException DbException;
 
@@ -35,17 +26,15 @@ class DbContext {
 public:
 	virtual ~DbContext();
 
-	static DbConnectionInformation ConnectionInformation;
+	static tmx::utils::DbConnectionInformation ConnectionInformation;
+
+	tmx::utils::DbConnection getConnection();
 protected:
 	DbContext();
 
-	sql::Statement *getStatement();
-
 	static std::string formatStringValue(std::string str);
-
 private:
-	sql::Driver *mDriver;
-	std::auto_ptr< sql::Connection > mCon;
+	tmx::utils::DbConnectionPool ConnectionPool;
 };
 
 

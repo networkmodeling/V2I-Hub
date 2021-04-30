@@ -40,7 +40,7 @@ var timeOffsetMs = 0;
 var msgTimeFilterMs = 600000;
 var CookieUrlList = [];
 
-var debugLevel = 0
+var debugLevel = 2
 
 /*
 function ssl_changed()

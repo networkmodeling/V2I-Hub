@@ -77,7 +77,9 @@ public:
 			tmx::routeable_message routeableMsg;
 			routeableMsg.initialize(msg, this->_pluginClient.GetName());
 
-			PluginClient::StaticOnMessageReceived(&(this->_pluginClient), routeableMsg.get_message());
+			IvpMessage *ivpMsg = routeableMsg.get_message();
+			PluginClient::StaticOnMessageReceived(this->_plugin, ivpMsg);
+			ivpMsg_destroy(ivpMsg);
 
 			_cache = _data;
 			return true;
@@ -133,7 +135,7 @@ public:
 			routeableMsg.initialize(msg, this->_pluginClient.GetName());
 
 			IvpMessage *ivpMsg = routeableMsg.get_message();
-			PluginClient::StaticOnMessageReceived(&(this->_pluginClient), ivpMsg);
+			PluginClient::StaticOnMessageReceived(this->_plugin, ivpMsg);
 			ivpMsg_destroy(ivpMsg);
 
 			_cache = newData;

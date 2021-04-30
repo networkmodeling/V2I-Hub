@@ -331,29 +331,33 @@ bool MapPlugin::LoadMapFiles()
 					if (inType == "ISD")
 					{
 						ISDToJ2735r41 converter(fn);
-						mapFile.set_Bytes(converter.to_encoded_message().get_payload_str());
+																MapDataMessage msg = converter.to_message();
+						MapDataEncodedMessage encMap;
+						encMap.initialize(msg);
+
+						mapFile.set_Bytes(encMap.get_payload_str());
+
 
 						PLOG(logINFO) << fn << " ISD file encoded as " << mapFile.get_Bytes();
 					}
 					else if (inType == "TXT")
 					{
-						byte_stream bytes;
 						ifstream in(fn);
-						in >> bytes;
+						string line;
+
+						std::getline(in, line);
+						byte_stream bytes = byte_stream_decode(line);
 
 						PLOG(logINFO) << fn << " MAP encoded bytes are " << bytes;
+						MapDataEncodedMessage encMap;
+						encMap.set_data(bytes);
 
-						MapDataMessage *mapMsg = MapDataEncodedMessage::decode_j2735_message<codec::uper<MapDataMessage> >(bytes);
-						if (mapMsg) {
-							PLOG(logDEBUG) << "Map is " << *mapMsg;
-
-							MapDataEncodedMessage mapEnc;
-							mapEnc.encode_j2735_message(*mapMsg);
-							mapFile.set_Bytes(mapEnc.get_payload_str());
-
-							PLOG(logINFO) << fn << " J2735 message bytes encoded as " << mapFile.get_Bytes();
-						}
+						MapDataMessage mapMsg = encMap.get_payload<MapDataMessage>();
+						PLOG(logDEBUG) << "Map is " << mapMsg;
+						mapFile.set_Bytes(encMap.get_payload_str());
+						PLOG(logINFO) << fn << " J2735 message bytes encoded as " << mapFile.get_Bytes();
 					}
+
 					else if (inType == "XML")
 					{
 						tmx::message_container_type container;

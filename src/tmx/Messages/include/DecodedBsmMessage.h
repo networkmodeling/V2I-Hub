@@ -16,7 +16,7 @@
 	#include <tmx/messages/faux_message.hpp>
 #endif
 
-#include "Units.h"
+#include "Measurement.h"
 
 namespace tmx {
 namespace messages {
@@ -26,6 +26,9 @@ namespace messages {
  */
 class DecodedBsmMessage : public tmx::message
 {
+	typedef Measurement<units::Angle, units::Angle::deg> degMeas;
+	typedef Measurement<units::Distance, units::Distance::m> mMeas;
+	typedef Measurement<units::Speed, units::Speed::mps> mpsMeas;
 public:
 	DecodedBsmMessage() {}
 
@@ -52,18 +55,18 @@ public:
 
 	/// The geographic position above or below the reference ellipsoid (typically WGS-84)
 	/// The valid range is -409.5 to 6143.9 meters.
-	std_attribute(this->msg, float, Elevation_m, 0.0, )
+	std_attribute(this->msg, double, Elevation_m, 0.0, )
 
 	/// The speed in meters per second
-	std_attribute(this->msg, double, Speed_mps, 0.0, )
+	std_attribute(this->msg, double, Speed, 0.0, )
 
 	/// The current heading in degrees.
 	/// The valid range is 0 to 359.9875 degrees.
-	std_attribute(this->msg, float, Heading, 0.0, )
+	std_attribute(this->msg, double, Heading, 0.0, )
 
 	/// The current angle of the steering wheel.
 	/// The valid range is -189 to 189 degrees.
-	std_attribute(this->msg, float, SteeringWheelAngle, 0.0, )
+	std_attribute(this->msg, double, SteeringWheelAngle, 0.0, )
 
 	/// Represents the millisecond within a minute, with a range of 0 - 60999.
 	/// A leap second is represented by the value range 60000 to 60999.
@@ -98,25 +101,86 @@ public:
 		set_MsgCount(value);
 	}
 
-	// Converter methods for MPH and KPH
+	/**
+	 * @return The elevation with units
+	 */
+	inline mMeas get_Elevation_meas() {
+		return mMeas(this->get_Elevation_m());
+	}
+
+	/**
+	 * @return The speed with units
+	 */
+	inline mpsMeas get_Speed_meas() {
+		return mpsMeas(this->get_Speed());
+	}
+
+	/**
+	 * @return The heading with units
+	 */
+	inline degMeas get_Heading_meas() {
+		return degMeas(this->get_Heading());
+	}
+
+	/**
+	 * @return The steering wheel angle with units
+	 */
+	inline degMeas get_SteeringWheelAngle_meas() {
+		return degMeas(this->get_SteeringWheelAngle());
+	}
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline double get_Speed_mph()
 	{
-		return this->get_Speed_mps() * Units::MPH_PER_MPS;
+		return this->get_Speed_meas().as<units::Speed::mph>().get_value();
 	}
 
-	inline void set_Speed_mph(double mph)
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline double get_Speed_mps()
 	{
-		this->set_Speed_mps(mph * Units::MPS_PER_MPH);
+		return this->get_Speed_meas().as<units::Speed::mps>().get_value();
 	}
 
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline double get_Speed_kph()
 	{
-		return this->get_Speed_mps() * Units::KPH_PER_MPS;
+		return this->get_Speed_meas().as<units::Speed::kph>().get_value();
 	}
 
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline void set_Speed_mph(double mph)
+	{
+		this->set_Speed(units::Convert<units::Speed, units::Speed::mph, mpsMeas::unit>(mph));
+	}
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
+	inline void set_Speed_mps(double mps)
+	{
+		this->set_Speed(units::Convert<units::Speed, units::Speed::mps, mpsMeas::unit>(mps));
+	}
+
+	/**
+	 * This function is only for backwards compatibility
+	 * @deprecated
+	 */
 	inline void set_Speed_kph(double kph)
 	{
-		this->set_Speed_mps(kph * Units::MPS_PER_KPH);
+		this->set_Speed(units::Convert<units::Speed, units::Speed::kph, mpsMeas::unit>(kph));
 	}
 };
 

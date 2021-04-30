@@ -22,19 +22,24 @@
 #define CONSTEXPR __attribute__ ((unused))
 #else
 #define CONSTEXPR
-#endif
-#endif
+#endif /* __GNUC__ */
+#endif /* __cplusplus > 199711L */
 #endif
 
+#if __cplusplus >= 201103L
+#include <tmx/utils/Enum.hpp>
+#endif /* __cplusplus >= 201103L */
 		
 	
 namespace tmx {
+	
 		
 namespace messages {
+	
 			
 namespace location {
+	
 				
-			
 enum FixTypes 
 {
 		Unknown = 0,
@@ -43,12 +48,19 @@ enum FixTypes
 		ThreeD = 3
 };
 		
-		
 static CONSTEXPR const char *FIXTYPES_UNKNOWN_STRING = "Unknown";
 static CONSTEXPR const char *FIXTYPES_NOFIX_STRING = "NoFix";
 static CONSTEXPR const char *FIXTYPES_TWOD_STRING = "TwoD";
 static CONSTEXPR const char *FIXTYPES_THREED_STRING = "ThreeD";
-			
+		
+static CONSTEXPR const char *FIXTYPES_ALL_STRINGS[] = 
+{
+		FIXTYPES_UNKNOWN_STRING,
+		FIXTYPES_NOFIX_STRING,
+		FIXTYPES_TWOD_STRING,
+		FIXTYPES_THREED_STRING
+};
+		
 enum SignalQualityTypes 
 {
 		Invalid = 0,
@@ -62,7 +74,6 @@ enum SignalQualityTypes
 		SimulationMode = 8
 };
 		
-		
 static CONSTEXPR const char *SIGNALQUALITYTYPES_INVALID_STRING = "Invalid";
 static CONSTEXPR const char *SIGNALQUALITYTYPES_GPS_STRING = "GPS";
 static CONSTEXPR const char *SIGNALQUALITYTYPES_DGPS_STRING = "DGPS";
@@ -72,13 +83,32 @@ static CONSTEXPR const char *SIGNALQUALITYTYPES_FLOATRTK_STRING = "FloatRTK";
 static CONSTEXPR const char *SIGNALQUALITYTYPES_DEADRECKONING_STRING = "DeadReckoning";
 static CONSTEXPR const char *SIGNALQUALITYTYPES_MANUALINPUTMODE_STRING = "ManualInputMode";
 static CONSTEXPR const char *SIGNALQUALITYTYPES_SIMULATIONMODE_STRING = "SimulationMode";
+		
+static CONSTEXPR const char *SIGNALQUALITYTYPES_ALL_STRINGS[] = 
+{
+		SIGNALQUALITYTYPES_INVALID_STRING,
+		SIGNALQUALITYTYPES_GPS_STRING,
+		SIGNALQUALITYTYPES_DGPS_STRING,
+		SIGNALQUALITYTYPES_PPS_STRING,
+		SIGNALQUALITYTYPES_REALTIMEKINEMATIC_STRING,
+		SIGNALQUALITYTYPES_FLOATRTK_STRING,
+		SIGNALQUALITYTYPES_DEADRECKONING_STRING,
+		SIGNALQUALITYTYPES_MANUALINPUTMODE_STRING,
+		SIGNALQUALITYTYPES_SIMULATIONMODE_STRING
+};
+		
 			
 } /* End namespace location */
 		
+		
 } /* End namespace messages */
+		
 	
 } /* End namespace tmx */
-
 		
+
+#if __cplusplus >= 201103L
+		
+#endif /* __cplusplus >= 201103L */ 
 #endif /* INCLUDE_LOCATIONMESSAGEENUMTYPES_H_ */
 	

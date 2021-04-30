@@ -275,13 +275,4 @@ MapDataMessage ISDToJ2735r41::to_message() {
 	return MapDataMessage(to_map());
 }
 
-MapDataEncodedMessage ISDToJ2735r41::to_encoded_message() {
-	MapDataMessage mapMsg = to_message();
-	PLOG(logDEBUG) << mapMsg;
-
-	MapDataEncodedMessage encMsg;
-	encMsg.initialize(mapMsg);
-	return encMsg;
-}
-
 } /* namespace MapPlugin */

@@ -42,16 +42,21 @@ void RtcmPlugin::UpdateConfigSettings() {
 	int port;
 
 	// Critical section
-	std::lock_guard<mutex> lock(_cfgLock);
-	GetConfigValue("Endpoint IP", ipaddress);
-	GetConfigValue("Endpoint Port", port);
-	GetConfigValue("Username", _username);
-	GetConfigValue("Password", _password);
-	GetConfigValue("Mountpoint", _mount);
-	GetConfigValue("RTCM Version", _version);
+	{
+		std::lock_guard<mutex> lock(_cfgLock);
+		GetConfigValue("Endpoint IP", ipaddress);
+		GetConfigValue("Endpoint Port", port);
+		GetConfigValue("Username", _username);
+		GetConfigValue("Password", _password);
+		GetConfigValue("Mountpoint", _mount);
+		GetConfigValue("RTCM Version", _version);
+	}
 
 	if (_version.empty())
 		_version = TmxRtcmMessage::MessageSubType;
+
+	if (ipaddress.empty())
+		return;
 
 	PLOG(logDEBUG) << "Connecting to " << ipaddress << ":" << port << " for " << _username;
 
@@ -210,7 +215,7 @@ int RtcmPlugin::Main() {
 			vector<string> response;
 			if (recv > 0) {
 				if (!_connected) {
-					PLOG(logDEBUG1) << "Recevied bytes:" << inBytes << endl;
+					PLOG(logDEBUG1) << "Received bytes:" << inBytes << endl;
 
 					// Read incoming message by line
 					istringstream inStream(string((const char *)inBytes.data(), recv));

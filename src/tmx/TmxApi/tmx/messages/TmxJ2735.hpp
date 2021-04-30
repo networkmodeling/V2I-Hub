@@ -97,28 +97,18 @@ public:
 		tmx::xml_message(msg), _j2735_data(msg._j2735_data) { }
 
 	/**
-	 * Copy from an existing reference to the message type.  This expects that all
-	 * memory management is done on the actual reference, so no clean up is done.
+	 * Copy constructor from a different XML message
 	 */
-	TmxJ2735Message(message_type &msg):
-		tmx::xml_message(), _j2735_data(&msg, [](message_type *p) { }) { }
+	TmxJ2735Message(const tmx::xml_message &msg):
+		tmx::xml_message(msg),
+		_j2735_data(NULL, [](message_type *p) { j2735::j2735_destroy<traits_type>(p); } ) { }
 
 	/**
 	 * Copy from existing shared pointer of same type.  Current ownership is still
 	 * maintained in the existing shared pointer, but reference count is increased.
 	 */
-	TmxJ2735Message(const std::shared_ptr<message_type> &other):
+	TmxJ2735Message(std::shared_ptr<message_type> other):
 		tmx::xml_message(), _j2735_data(other) { }
-
-	/**
-	 * Same as above, but copy from a different message type, presumably
-	 * one that is convertible to this type.  A new reference to the ASN.1 struct
-	 * message pointer is created, but the original owner still maintains ownership.
-	 */
-	template <typename OtherMsgType>
-	TmxJ2735Message(const std::shared_ptr<OtherMsgType> &other):
-		tmx::xml_message(),
-		_j2735_data(j2735::j2735_cast<message_type>(other.get()), [](message_type *p) { }) { }
 
 	/**
 	 * Destructor
@@ -173,7 +163,7 @@ public:
 				BOOST_THROW_EXCEPTION(J2735Exception(err.str()));
 			}
 
-			_j2735_data.reset(tmp);
+			_j2735_data.reset(tmp, [](message_type *p) { j2735::j2735_destroy<traits_type>(p); } );
 		}
 
  		return _j2735_data;

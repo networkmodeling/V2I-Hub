@@ -25,7 +25,7 @@ namespace utils {
 class MapMatchResult
 {
 public:
-	MapMatchResult() : LaneNumber (0), IsInLane(false), PerpDistanceMeters (-1), StopDistanceMeters (-1){};
+	MapMatchResult() : LaneNumber (0), IsEgress(false), IsInLane(false), PerpDistanceMeters (-1), StopDistanceMeters (-1), LaneSegment(0), IsNearLane(false), Grade(0){};
 	virtual ~MapMatchResult() {};
 
 	///The lane number that had the match.
@@ -39,8 +39,12 @@ public:
 	///Distance of the point to the stop line (e.g. first point) of the lane.
 	double StopDistanceMeters;
 	///One-Based segment number of the nodes that make up the lane that the point matched to.
-	///E.g. if the point matched betwen the first and second nodes of the lane, it would return 1.
+	///E.g. if the point matched between the first and second nodes of the lane, it would return 1.
 	int LaneSegment;
+	///If the point was close enough to be considered in lane
+	bool IsNearLane;
+	///Road grade (rise/run) at the point.
+	double Grade;
 };
 
 class MapSupport {
@@ -54,8 +58,10 @@ public:
 	 * be within the intersection itself. Returns -2 if the point is outside the map altogether.
 	 * @param point  Current location point to evaluate.
 	 * @param map  Map data
+	 * @param heading  Vehicle heading
 	 * 	 */
 	MapMatchResult FindVehicleLaneForPoint(WGS84Point point, ParsedMap &map);
+	MapMatchResult FindVehicleLaneForPoint(WGS84Point point, double heading, ParsedMap &map, bool vehicleIsStopped = false);
 
 	/**
 	 * Does a simple compare of the point's lat/long to the max & min lat long saved from parsing the map.
@@ -76,8 +82,10 @@ public:
  * Compares the point to the lane to find the confidence that the point is within the lane.
  	 * @param point  Current location point to evaluate.
 	 * @param lane  Map lane to match to.
+	 * @param heading  Vehicle heading.
  */
 	MapMatchResult PointIsInLane(MapLane &lane, WGS84Point point);
+	MapMatchResult PointIsInLane(MapLane &lane, WGS84Point point, double heading, bool vehicleIsStopped = false);
 
 	/*
 	 * Determine if the lane is a vehicle or vehicle computed lane based on the LaneId and the Parsed Map

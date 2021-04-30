@@ -20,9 +20,10 @@ vector<PluginEntry> PluginContext::getAllPlugins()
 {
 	vector<PluginEntry> results;
 
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
-	auto_ptr< sql::ResultSet > rset(stmt->executeQuery("SELECT * FROM plugin"));
+	unique_ptr< sql::ResultSet > rset(stmt->executeQuery("SELECT * FROM plugin"));
 	while(rset->next())
 	{
 		PluginEntry entry;
@@ -42,10 +43,11 @@ PluginEntry PluginContext::getPlugin(std::string pluginName)
 {
 	PluginEntry results;
 
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	string query = "SELECT * FROM `plugin` WHERE `plugin`.`name` = '" + DbContext::formatStringValue(pluginName) + "';";
-	auto_ptr< sql::ResultSet > rset(stmt->executeQuery(query));
+	unique_ptr< sql::ResultSet > rset(stmt->executeQuery(query));
 	if (rset->next())
 	{
 		results.id = rset->getUInt("id");
@@ -59,13 +61,14 @@ PluginEntry PluginContext::getPlugin(std::string pluginName)
 
 void PluginContext::insertOrUpdatePlugin(PluginEntry &entry)
 {
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	string query = "INSERT INTO plugin (name, description, version) VALUES ('" + DbContext::formatStringValue(entry.name) + "', '" + DbContext::formatStringValue(entry.description) + "', '" + DbContext::formatStringValue(entry.version) + "') ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), version = VALUES(version)";
 	stmt->execute(query);
 
 	query = "SELECT `id` FROM `plugin` WHERE `plugin`.`name` = '" + entry.name + "';";
-	auto_ptr< sql::ResultSet > rset(stmt->executeQuery(query));
+	unique_ptr< sql::ResultSet > rset(stmt->executeQuery(query));
 	if (rset->next())
 	{
 		entry.id = rset->getUInt("id");
@@ -74,7 +77,8 @@ void PluginContext::insertOrUpdatePlugin(PluginEntry &entry)
 
 void PluginContext::removeAllNotInstalled()
 {
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	stringstream query;
 	query << "DELETE FROM `plugin` WHERE `plugin`.`id` NOT IN (SELECT `installedPlugins`.`pluginId` FROM `installedPlugins`);";
@@ -91,7 +95,8 @@ void PluginContext::removeAllNotInstalled()
 
 void PluginContext::setStatusForAllPlugins(std::string status)
 {
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	stringstream query;
 	query << "UPDATE `pluginStatus` SET `value` = '" << DbContext::formatStringValue(status) << "' WHERE `key` = '';";
@@ -101,7 +106,8 @@ void PluginContext::setStatusForAllPlugins(std::string status)
 
 void PluginContext::setPluginStatus(unsigned int pluginId, std::string status)
 {
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	stringstream query;
 	query << "INSERT INTO `pluginStatus` (`pluginId`,`key`,`value`) VALUES ('" << pluginId << "', '', '" << DbContext::formatStringValue(status) << "') ON DUPLICATE KEY UPDATE value = VALUES(value);";
@@ -110,7 +116,8 @@ void PluginContext::setPluginStatus(unsigned int pluginId, std::string status)
 
 void PluginContext::setPluginStatusItems(unsigned int pluginId, std::vector<PluginStatusItem> statusItems)
 {
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	if (statusItems.size() > 0)
 	{
@@ -134,7 +141,8 @@ void PluginContext::setPluginStatusItems(unsigned int pluginId, std::vector<Plug
 
 void PluginContext::removePluginStatusItems(unsigned int pluginId, std::vector<std::string> itemKeys)
 {
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	for(vector<string>::iterator itr = itemKeys.begin(); itr != itemKeys.end(); itr++)
 	{
@@ -146,7 +154,8 @@ void PluginContext::removePluginStatusItems(unsigned int pluginId, std::vector<s
 
 void PluginContext::removeAllPluginStatusItems(unsigned int pluginId)
 {
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	stringstream query;
 	query << "DELETE FROM `pluginStatus` WHERE `pluginId` = '" << pluginId << "' AND `key` > '';";
@@ -155,7 +164,8 @@ void PluginContext::removeAllPluginStatusItems(unsigned int pluginId)
 
 void PluginContext::removeAllPluginStatusItems()
 {
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	stringstream query;
 	query << "DELETE FROM `pluginStatus` WHERE `key` > '';";
@@ -167,7 +177,8 @@ set<InstalledPluginEntry> PluginContext::getInstalledPlugins(bool enabledOnly)
 {
 	set<InstalledPluginEntry> results;
 
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	/*
 	 * select
@@ -187,7 +198,7 @@ set<InstalledPluginEntry> PluginContext::getInstalledPlugins(bool enabledOnly)
 
 	query += ";";
 
-	auto_ptr< sql::ResultSet > rset(stmt->executeQuery(query));
+	unique_ptr< sql::ResultSet > rset(stmt->executeQuery(query));
 	while(rset->next())
 	{
 		InstalledPluginEntry entry;
@@ -212,7 +223,8 @@ set<InstalledPluginEntry> PluginContext::getInstalledPlugins(bool enabledOnly)
 
 void PluginContext::disableInstalledPlugin(unsigned int id)
 {
-	auto_ptr<sql::Statement> stmt(this->getStatement());
+	auto conn = this->getConnection();
+	unique_ptr< sql::Statement > stmt(conn.Get()->createStatement());
 
 	stringstream query;
 	query << "UPDATE `installedPlugin` SET `enabled` = '0' WHERE `id` = '" << id << "';";

@@ -44,7 +44,7 @@ constexpr const char *RtcmVersionName() {
 	return RtcmVersionName(Version);
 }
 
-RTCM_VERSION RtcmVersion(std::string version) {
+inline RTCM_VERSION RtcmVersion(std::string version) {
 	for (size_t i = 0; i < RTCM_EOF; i++)
 		if (strcmp(RTCM_VERSIONS[i], version.c_str()) == 0)
 			return (RTCM_VERSION)i;

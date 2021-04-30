@@ -353,9 +353,9 @@ int PluginClient::Main()
 
 	while (_plugin->state != IvpPluginState_error)
 	{
-		PLOG(logDEBUG4) << "Sleeping 1 ms" << endl;
+		PLOG(logDEBUG4) << "Sleeping 10 ms" << endl;
 
-		this_thread::sleep_for(chrono::milliseconds(1000));
+		this_thread::sleep_for(chrono::milliseconds(10));
 	}
 
 	PLOG(logINFO) << "Plugin terminating gracefully.";

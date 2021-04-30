@@ -63,6 +63,11 @@ public:
 	 */
 	bool IsRunning();
 
+	/**
+	 * @returns The number of work threads
+	 */
+	size_t NumThreads();
+
 	// Incoming message handling
 
 	/**
@@ -147,7 +152,7 @@ public:
 	 *
 	 * @param msg The message to handle
 	 */
-	virtual void OnMessageReceived(tmx::routeable_message &msg);
+	virtual void OnMessageReceived(const tmx::routeable_message &msg);
 
 	/**
 	 * Clean up thread associated resources for this group and id.  By default, this unlinks the source information from the
@@ -157,6 +162,12 @@ public:
 	 */
 	virtual void Cleanup(tmx::byte_t groupId = 0, tmx::byte_t uniqId = 0);
 
+	/**
+	 * Default method for determining if this thread is ready to accept a new message from the specific group and id. The default
+	 * behavior only looks at whether the thread is currently in overflow. If the plugin requires other functionality, for example,
+	 * to ensure only one type of message exists in the queue at a time, then this function needs overridden.
+	 */
+	virtual bool Accept(tmx::byte_t groupId = 0, tmx::byte_t uniqId = 0);
 protected:
 	/**
 	 * Default method for handling config changes.  Only worries about the thread manager configuration.

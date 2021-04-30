@@ -16,9 +16,11 @@
 #include <tmx/j2735_messages/J2735MessageFactory.hpp>
 #include <BsmConverter.h>
 #include <LocationMessage.h>
+#include <VehicleBasicMessage.h>
 
 #define ABBR_BSM 1000
 #define ABBR_SRM 2000
+#define ABBR_VBM 3000
 
 using namespace std;
 using namespace boost::asio;
@@ -153,35 +155,38 @@ SrmMessage *DecodeSrm(uint32_t vehicleId, uint32_t heading, uint32_t speed, uint
 	return new SrmMessage(srm);
 }
 
-void MessageReceiverPlugin::OnMessageReceived(routeable_message &msg)
+void MessageReceiverPlugin::OnMessageReceived(const routeable_message &msg)
 {
-	routeable_message *sendMsg = &msg;
+	routeable_message copy { msg };
 
 	DecodedBsmMessage decodedBsm;
 	BsmEncodedMessage encodedBsm;
 	SrmEncodedMessage encodedSrm;
+	routeable_message genericRM;
 
-	PLOG(logDEBUG) << "Received " << msg;
+	routeable_message *sendMsg = &copy;
 
-	if (msg.get_type() == "Unknown" && msg.get_subtype() == "Unknown")
+	PLOG(logDEBUG) << "Received " << copy;
+
+	if (copy.get_type() == "Unknown" && copy.get_subtype() == "Unknown")
 	{
-		if (msg.get_encoding() == api::ENCODING_JSON_STRING)
+		if (copy.get_encoding() == api::ENCODING_JSON_STRING)
 		{
 			// Check to see if the payload is a routable message
-			message payloadMsg = msg.get_payload<message>();
+			message payloadMsg = copy.get_payload<message>();
 			if (payloadMsg.get_untyped("header.type", "Unknown") != "Unknown")
 			{
-				msg.clear();
-				msg.set_contents(payloadMsg.get_container());
-				msg.reinit();
+				copy.clear();
+				copy.set_contents(payloadMsg.get_container());
+				copy.reinit();
 			}
 		}
-		else if (msg.get_encoding() == api::ENCODING_BYTEARRAY_STRING)
+		else if (copy.get_encoding() == api::ENCODING_BYTEARRAY_STRING)
 		{
 			try
 			{
 				// Check for an abbreviated message
-				const byte_stream &bytes = msg.get_payload_bytes();
+				const byte_stream &bytes = copy.get_payload_bytes();
 				if (bytes.size() > 8)
 				{
 					PLOG(logDEBUG) << "Looking for abbreviated message in bytes " << bytes;
@@ -221,7 +226,7 @@ void MessageReceiverPlugin::OnMessageReceived(routeable_message &msg)
 								if (simLoc) {
 									LocationMessage loc(::to_string(decodedBsm.get_TemporaryId()),
 													    location::SignalQualityTypes::SimulationMode,
-														"", ::to_string(msg.get_timestamp()),
+														"", ::to_string(copy.get_timestamp()),
 														decodedBsm.get_Latitude(), decodedBsm.get_Longitude(),
 														location::FixTypes::ThreeD, 0, 0.0,
 														decodedBsm.get_Speed_mps(), decodedBsm.get_Heading());
@@ -230,10 +235,12 @@ void MessageReceiverPlugin::OnMessageReceived(routeable_message &msg)
 									routeable_message rMsg;
 									rMsg.initialize(loc);
 
-									this->IncomingMessage(rMsg, 0, 0, msg.get_timestamp());
+									this->IncomingMessage(rMsg, 0, 0, copy.get_timestamp());
 								}
 
 								sendMsg = encode(encodedBsm, bsm);
+								if (sendMsg) sendMsg->addDsrcMetadata(172, 0x20);
+
 								if (!simBSM) return;
 							}
 							break;
@@ -251,7 +258,26 @@ void MessageReceiverPlugin::OnMessageReceived(routeable_message &msg)
 										ntohl(*((uint32_t*)&(bytes.data()[24]))),
 										ntohl(*((uint32_t*)&(bytes.data()[28]))));
 								sendMsg = encode(encodedSrm, srm);
+							}
+							break;
+						case ABBR_VBM:
+							if (bytes.size() >= 23 && dataLength >= 15)
+							{
+								if (!simVBM) return;
 
+								//extract data
+								//vehicleId(4), speed*K(4), gearPosition(1), turnSignalPosition(1), flags1(1), acceleration*K(4)
+								VehicleBasicMessage vbm;
+								vbm.set_GearPosition((vehicleparam::GearState)bytes.data()[16]);
+								vbm.set_Brake(bytes.data()[18] & 0x01);
+								vbm.set_Speed_mps(ntohl(*((uint32_t*)&(bytes.data()[12]))) / 1000.0);
+								vbm.set_TurnSignalPosition((vehicleparam::TurnSignalState)bytes.data()[17]);
+								vbm.set_FrontDoors(bytes.data()[18] & 0x02);
+								vbm.set_RearDoors(bytes.data()[18] & 0x04);
+								uint32_t tmp = ntohl(*((uint32_t*)&(bytes.data()[19])));
+								vbm.set_Acceleration((*(int32_t*)&tmp) / 1000.0);
+								genericRM.initialize(vbm);
+								sendMsg = &genericRM;
 							}
 							break;
 						default:
@@ -273,7 +299,7 @@ void MessageReceiverPlugin::OnMessageReceived(routeable_message &msg)
 
 	// Make sure the timestamp matches the incoming source message
 
-	sendMsg->set_timestamp(msg.get_timestamp());
+	sendMsg->set_timestamp(copy.get_timestamp());
 
 	// Keep a count of each type of message received
 	string name(sendMsg->get_subtype());
@@ -312,6 +338,7 @@ void MessageReceiverPlugin::UpdateConfigSettings()
 	GetConfigValue("RouteDSRC", routeDsrc);
 	GetConfigValue("EnableSimulatedBSM", simBSM);
 	GetConfigValue("EnableSimulatedSRM", simSRM);
+	GetConfigValue("EnableSimulatedVBM", simVBM);
 	GetConfigValue("EnableSimulatedLocation", simLoc);
 
 	lock_guard<mutex> lock(syncLock);
@@ -364,7 +391,7 @@ int MessageReceiverPlugin::Main()
 
 		try
 		{
-			int len = server ? server->TimedReceive((char *)incoming.data(), incoming.size(), 5) : 0;
+			int len = server ? server->Receive((char *)incoming.data(), incoming.size()) : 0;
 
 			if (len > 0)
 			{

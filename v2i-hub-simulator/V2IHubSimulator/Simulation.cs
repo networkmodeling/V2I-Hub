@@ -35,6 +35,16 @@ namespace V2IHubSimulator
             WaypointLists[vehicleId][wpNum].Speed_mph = speed_mph;
         }
 
+        public void SetWaypointLat(int vehicleId, int wpNum, double latitude)
+        {
+            WaypointLists[vehicleId][wpNum].Latitude = latitude;
+        }
+
+        public void SetWaypointLon(int vehicleId, int wpNum, double longitude)
+        {
+            WaypointLists[vehicleId][wpNum].Longitude = longitude;
+        }
+
         public void SetWaypointPause(int vehicleId, int wpNum, double pause_seconds)
         {
             WaypointLists[vehicleId][wpNum].Pause_seconds = pause_seconds;

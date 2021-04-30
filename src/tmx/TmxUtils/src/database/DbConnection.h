@@ -42,6 +42,14 @@ public:
 	DbConnection(std::string connectionUrl, std::string username = "", std::string password = "", std::string db = "");
 
 	/**
+	 * Construct a new connection from the contained information.  The connection is active upon construction.
+	 *
+	 * @param connectionInfo The connection URL, login and connection information
+	 * @throws A sql::SQLException for connection errors
+	 */
+	DbConnection(const DbConnectionInformation &connectionInfo);
+
+	/**
 	 * Construct a duplicate connection from an active one.  The connections are shared.
 	 *
 	 * @param copy The existing connection

@@ -28,7 +28,7 @@ public:
 	virtual ~MessageReceiverPlugin();
 
 	int Main();
-	void OnMessageReceived(tmx::routeable_message &msg);
+	void OnMessageReceived(const tmx::routeable_message &msg);
 protected:
 	void UpdateConfigSettings();
 
@@ -44,6 +44,7 @@ private:
 	std::atomic<bool> simBSM { true };
 	std::atomic<bool> simSRM { true };
 	std::atomic<bool> simLoc { true };
+	std::atomic<bool> simVBM { true };
 
 };
 

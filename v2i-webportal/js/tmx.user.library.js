@@ -1,6 +1,6 @@
 "use strict"; 
 
-var userLibraryJsVersion = "0.0.1";
+var userLibraryJsVersion = "3.3.0";
 var currUser = null;
 
 function updateUserObject(user, access) 

@@ -329,7 +329,8 @@ int CswPlugin::Main() {
 
 				PLOG(logDEBUG)<<"Send TIM";
 				lastSendTime = time;
-				TimMessage timMsg(_tim);
+				TimMessage timMsg;
+				timMsg.set_j2735_data(&_tim);
 
 				PLOG(logDEBUG)<<"Send TIM 2";
 
