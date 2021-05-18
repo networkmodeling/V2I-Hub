@@ -103,10 +103,10 @@ $ cmake .
 $ make
 ```
 This will create a bin directory that contains the plugin executable, as well as a directory for each plugin.  However, a V2I Hub plugin must be packaged in a ZIP file to be installed to a system.  In order to package up any one of the plugins from the v2i-hub directory, do the following:
-
+```
 $ ln -s ../bin <PluginName>/bin
 $ zip <PluginName>.zip <PluginName>/bin/<PluginName> <PluginName>/manifest.json
-
+```
 The binary and the manifest file are the minimum number of files needed for any V2I Hub plugin.  It is possible some specific plugins require more files from the sub-directory to be included in the installable ZIP.
 
 ## Execution
