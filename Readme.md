@@ -75,22 +75,37 @@ $ sudo make install
 
 
 # Usage
-*Provide users with detailed instructions for how to use your software. The specifics of this section will vary between projects, but should adhere to the following minimum outline:*
 
 ## Building
-*Specifics for how to build/compile this code should be outlined here. If your code does not require any type of build/compilation, specify that here.*
 
-Example: 
+To Compile the V2I Hub software
+Run the following from the src directory
 
-Step 1: Build Docker image:
-```
-docker build myproject
-```
+$ cd tmx
+$ cmake .
+$ make 
+$ sudo make install
 
-Step 2: Run Docker image:
-```
-docker run myproject
-```
+The library path to the new libraries needs to added to the LD_LIBRARY_PATH variable for the libraries to be found. This can be done in a per session basis with the command line.
+
+$ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+
+When the unit is rebooted this variable will not be set. To add the path at bootup modify the correct file in the /etc/ld.so.conf.d/ directory and add a line with the path “/usr/local/lib/”. For an Intel 64 bit system the correct file is “x86_64-linux-gnu.conf” but this will vary based on your platform. After the file is modified run this command to update the paths.
+
+$ sudo ldconfig
+
+Now, run the following from the src directory
+$ cd v2i-hub
+$ cmake .
+$ make
+
+This will create a bin directory that contains the plugin executable, as well as a directory for each plugin.  However, a V2I Hub plugin must be packaged in a ZIP file to be installed to a system.  In order to package up any one of the plugins from the v2i-hub directory, do the following:
+
+$ ln -s ../bin <PluginName>/bin
+$ zip <PluginName>.zip <PluginName>/bin/<PluginName> <PluginName>/manifest.json
+
+The binary and the manifest file are the minimum number of files needed for any V2I Hub plugin.  It is possible some specific plugins require more files from the sub-directory to be included in the installable ZIP.
+
 ## Execution
 
 Installation Instructions
