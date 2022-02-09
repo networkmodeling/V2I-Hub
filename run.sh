@@ -34,5 +34,6 @@ sudo tmxctl --plugin-install DsrcImmediateForwardPlugin.zip
 sudo tmxctl --plugin-install MapPlugin.zip
 sudo tmxctl --plugin-install MessageReceiverPlugin.zip
 sudo tmxctl --plugin-install SpatPlugin.zip
+sudo tmxctl --plugin-install HRIStatusPlugin.zip
 
 $TOPDIR/container/service.sh

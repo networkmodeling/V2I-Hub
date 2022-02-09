@@ -28,6 +28,8 @@ ln -s ../bin MessageReceiverPlugin/bin
 zip MessageReceiverPlugin.zip MessageReceiverPlugin/bin/MessageReceiverPlugin MessageReceiverPlugin/manifest.json
 ln -s ../bin SpatPlugin/bin
 zip SpatPlugin.zip SpatPlugin/bin/SpatPlugin SpatPlugin/manifest.json
+ln -s ../bin HRIStatusPlugin/bin
+zip HRIStatusPlugin.zip HRIStatusPlugin/bin/HRIStatusPlugin HRIStatusPlugin/manifest.json
 
 
 sudo mysql -uroot << EOF
