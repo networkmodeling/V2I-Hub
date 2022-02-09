@@ -10,6 +10,8 @@ fi
 echo "Top level dir: $1"
 TOPDIR=$1
 
+service mysql start
+service mysql start
 
 cd $TOPDIR/container/
 chmod +x database.sh
