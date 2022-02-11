@@ -1,0 +1,82 @@
+{
+	"name":"HRIPredictedSpatPlugin",
+	"description":"Sends HRI Status as SPAT Message",
+	"version":"5.0",
+	"exeLocation":"/bin/HRIPredictedSpatPlugin",
+	"coreIpAddr":"127.0.0.1",
+	"corePort":24601,
+	"messageTypes":[
+		{
+			"type":"J2735",
+			"subtype":"SPAT-P",
+			"description":"SPAT message containing the HRI Status"
+		}
+	],
+	"configuration":[
+		{
+			"key":"Frequency",
+			"default":"100",
+			"description":"The frequency to send the SPAT message in milliseconds."
+		},
+		{
+		    "key":"Monitor Frequency",
+		    "default":"100",
+		    "description":"The frequency to monitor the preemption signal in milliseconds."
+		},
+		{
+			"key":"RailPinNumber",
+			"default":"0",
+			"description":"The digital I/O pin that the rail signal is on."
+		},
+		{
+		    "key":"Lane Map",
+		    "default":"1:tracked,2:vehicle",
+		    "description":"Maps the signal groups in the SPAT message to either tracked or vehicle lanes"
+		},
+		{
+		    "key":"Intersection ID",
+		    "default":"1929",
+		    "description":"The intersection id to use in the spat message."
+		},
+		{
+		    "key":"Intersection Name",
+		    "default":"Rail Crossing",
+		    "description":"The intersection name to use in the spat message."
+		},
+		{
+		    "key":"Always Send",
+		    "default":"True",
+		    "description":"Always send DSRC communication. Otherwise only send when BSMs or Preempt is true."
+		},
+		{
+		    "key":"Port Name",
+		    "default":"/dev/ttyS0",
+		    "description":"The serial port to use for communication, blank if not using serial port"
+		},
+		{
+		    "key":"Serial Data Timeout",
+		    "default":"1500",
+		    "description":"The timeout to mark serial data as invalid in milliseconds."
+		},
+	   	{
+	       	    "key":"LogLevel",
+	       	    "default":"INFO",
+	       	    "description":"The log level"
+	   	},
+		{
+			"key":"UseDummy",
+			"default":"true",
+			"description":"Use dummy GPS data for static testing"
+		},
+		{
+			"key":"DummyPreemptionSignal",
+			"default":"true",
+			"description":"Dummy preemption signal status"
+		},
+		{
+			"key":"UseSimulatedPreemptionSignal",
+			"default":"false",
+			"description":"Use simulated preemption signal status from CARDS"
+		}
+	]
+}

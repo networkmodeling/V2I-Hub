@@ -30,6 +30,8 @@ ln -s ../bin SpatPlugin/bin
 zip SpatPlugin.zip SpatPlugin/bin/SpatPlugin SpatPlugin/manifest.json
 ln -s ../bin HRIStatusPlugin/bin
 zip HRIStatusPlugin.zip HRIStatusPlugin/bin/HRIStatusPlugin HRIStatusPlugin/manifest.json
+ln -s ../bin HRIPredictedSpatPlugin/bin
+zip HRIPredictedSpatPlugin.zip HRIPredictedSpatPlugin/bin/HRIPredictedSpatPlugin HRIPredictedSpatPlugin/manifest.json
 
 
 sudo mysql -uroot << EOF
@@ -37,7 +39,7 @@ ALTER USER 'root'@'localhost' IDENTIFIED WITH 'mysql_native_password' BY 'ivp';
 FLUSH PRIVILEGES;
 EOF
 
-cd $TOPDIR/data/DatabaseSetup
+cd $TOPDIR/DatabaseSetup
 chmod +x install_db.sh
 sudo ./install_db.sh
 

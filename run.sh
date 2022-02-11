@@ -37,5 +37,6 @@ sudo tmxctl --plugin-install MapPlugin.zip
 sudo tmxctl --plugin-install MessageReceiverPlugin.zip
 sudo tmxctl --plugin-install SpatPlugin.zip
 sudo tmxctl --plugin-install HRIStatusPlugin.zip
+sudo tmxctl --plugin-install HRIPredictedSpatPlugin.zip
 
 $TOPDIR/container/service.sh
