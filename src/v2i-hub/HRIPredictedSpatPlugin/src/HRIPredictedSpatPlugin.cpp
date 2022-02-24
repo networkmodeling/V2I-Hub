@@ -292,6 +292,7 @@ void HRIPredictedSpatPlugin::OnStateChange(IvpPluginState state)
 		_trainComing = false;
 
 		this->SetStatus<std::string>("Train", "Crossing is clear");
+		this->SetStatus<std::string>("SPaT-Phase", "stop-And-Remain");
 		_previousState = _trainComing;
 
 		UpdateConfigSettings();
@@ -582,6 +583,7 @@ void HRIPredictedSpatPlugin::MonitorRailSignal()
 			{
 				PLOG(logINFO) << "Train is present at the crossing.";
 				this->SetStatus<std::string>("Train", "Train present at crossing.");
+				this->SetStatus<std::string>("SPaT-Phase", "protected-Movement-Allowed");
 				_previousState = _trainComing;
 			}
 
@@ -593,6 +595,7 @@ void HRIPredictedSpatPlugin::MonitorRailSignal()
 			{
 				PLOG(logINFO) << "Crossing is clear.";
 				this->SetStatus<std::string>("Train", "Crossing is clear");
+				this->SetStatus<std::string>("SPaT-Phase", "stop-And-Remain");
 				_previousState = _trainComing;
 			}
 		}
@@ -966,9 +969,9 @@ int HRIPredictedSpatPlugin::Main()
 			else
 				_simulatedPreemptionSignal = false;
 			_minEndTime = hri_predicted_spat_plugin_agent.get_minEndTime();
-			this->SetStatus("minEndTime", _minEndTime);
+			this->SetStatus("SPaT-minEndTime", _minEndTime);
 			_maxEndTime = hri_predicted_spat_plugin_agent.get_maxEndTime();
-			this->SetStatus("maxEndTime", _maxEndTime);
+			this->SetStatus("SPaT-maxEndTime", _maxEndTime);
 			_currentTime = hri_predicted_spat_plugin_agent.get_currentTime();
 			this->SetStatus("currentTime", _currentTime);
 		}
