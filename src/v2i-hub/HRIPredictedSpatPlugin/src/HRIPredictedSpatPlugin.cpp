@@ -30,7 +30,8 @@
 #include <FrequencyThrottle.h>
 #include <System.h>
 
-#include "Plugin_Communication_System.h"
+// #include "Plugin_Communication_System.h"
+#include "HRI_Predicted_SPaT_Plugin_Agent.h"
 
 #ifdef __cplusplus
 extern "C" {
